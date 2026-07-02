@@ -27,13 +27,9 @@ class MpesaService {
       console.warn('[M-Pesa] Set real credentials in .env to enable production');
     } else {
       console.log(`[M-Pesa] ✅ M-Pesa is configured for ${this.environment}`);
-      if (
-        this.isBuyGoodsTransaction(this.transactionType)
-        && this.partyB
-        && this.partyB !== this.resolveBusinessShortCode(this.transactionType)
-      ) {
+      if (this.isBuyGoodsTransaction(this.transactionType) && this.partyB && this.partyB !== this.businessCode) {
         console.warn(
-          `[M-Pesa] MPESA_PARTYB (${this.partyB}) differs from the signing shortcode (${this.resolveBusinessShortCode(this.transactionType)}).`
+          `[M-Pesa] MPESA_PARTYB (${this.partyB}) differs from MPESA_SHORTCODE (${this.businessCode}). Using MPESA_PARTYB as configured.`
         );
       }
     }
@@ -106,14 +102,9 @@ class MpesaService {
 
   resolveBusinessShortCode(transactionType = this.transactionType) {
     // STK password/signature must match the merchant shortcode that owns the passkey.
-    // For Buy Goods, default to the destination till to avoid signing for one merchant
-    // while routing funds to another. Use explicit override when your Daraja setup requires it.
+    // Use explicit override when your Daraja setup requires a different signing shortcode.
     if (this.stkBusinessShortcode) {
       return this.stkBusinessShortcode;
-    }
-
-    if (this.isBuyGoodsTransaction(transactionType)) {
-      return this.partyB || this.shortcode;
     }
 
     return this.shortcode || this.partyB;
