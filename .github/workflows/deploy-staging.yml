@@ -122,20 +122,7 @@ jobs:
               value="$2"
               file="$3"
               tmp_file="${file}.tmp"
-              awk -v key="$key" -v value="$value" '
-                BEGIN { updated=0 }
-                $0 ~ "^" key "=" {
-                  print key "=" value
-                  updated=1
-                  next
-                }
-                { print }
-                END {
-                  if (!updated) {
-                    print key "=" value
-                  }
-                }
-              ' "$file" > "$tmp_file"
+              awk -v key="$key" -v value="$value" 'BEGIN{updated=0} index($0,key"=")==1{if(!updated){print key"="value; updated=1} next} {print} END{if(!updated) print key"="value}' "$file" > "$tmp_file"
               mv "$tmp_file" "$file"
             }
 
