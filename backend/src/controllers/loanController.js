@@ -192,6 +192,7 @@ class LoanController {
         loanAmount: resolvedLoanAmount,
         termDays: termDays || 60,
         status: 'initiated',
+        rawRequest: result.rawRequest || null,
         rawResponse: result.rawResponse || null,
       });
 
@@ -277,8 +278,13 @@ class LoanController {
         }
       }
 
+      const queryRoutingProfile =
+        refreshedTransaction?.rawRequest?.routingProfile
+        || existingTransaction?.rawRequest?.routingProfile
+        || null;
+
       console.log('[Payment Status] Querying M-Pesa API for transaction status...');
-      const result = await mpesaService.checkTransactionStatus(checkoutId);
+      const result = await mpesaService.checkTransactionStatus(checkoutId, 1, queryRoutingProfile);
       console.log('[Payment Status] M-Pesa query result:', result.status);
 
       const refreshedTransaction = await MpesaTransaction.findByCheckoutRequestId(checkoutId);

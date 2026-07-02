@@ -490,6 +490,13 @@ class MpesaService {
       return {
         checkoutRequestId: response.CheckoutRequestID,
         merchantRequestId: response.MerchantRequestID,
+        rawRequest: {
+          routingProfile: {
+            businessShortCode: payload.BusinessShortCode,
+            partyB: payload.PartyB,
+            transactionType: payload.TransactionType,
+          },
+        },
         rawResponse: response,
         success: true,
       };
@@ -521,7 +528,7 @@ class MpesaService {
     }
   }
 
-  async checkTransactionStatus(checkoutRequestId, attempt = 1) {
+  async checkTransactionStatus(checkoutRequestId, attempt = 1, routingProfile = null) {
     try {
       this.refreshRuntimeConfig();
       if (this.environment !== 'production') {
@@ -536,8 +543,8 @@ class MpesaService {
         .replace(/[^0-9]/g, '')
         .slice(0, -3);
 
-      const activeTransactionType = this.getActiveTransactionType();
-      const activeBusinessCode = this.resolveBusinessShortCode(activeTransactionType);
+      const queryRoutingProfile = routingProfile || this.getRoutingProfile(this.getActiveTransactionType());
+      const activeBusinessCode = queryRoutingProfile.businessShortCode;
       const password = Buffer.from(
         `${activeBusinessCode}${this.passkey}${timestamp}`
       ).toString('base64');
@@ -593,7 +600,7 @@ class MpesaService {
 
       if (attempt < 2 && (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || !error.response)) {
         await new Promise((resolve) => setTimeout(resolve, 300));
-        return this.checkTransactionStatus(checkoutRequestId, attempt + 1);
+        return this.checkTransactionStatus(checkoutRequestId, attempt + 1, routingProfile);
       }
 
       // Return a pending state when status query fails, to avoid false failures
