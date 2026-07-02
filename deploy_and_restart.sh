@@ -295,13 +295,11 @@ elif [[ ! -f backend/.env ]]; then
 	echo "Created backend/.env from template"
 fi
 
-if [[ -f "$ENV_SYNC_DIR/frontend.env" ]]; then
-	cp "$ENV_SYNC_DIR/frontend.env" frontend/.env
-	chmod 600 frontend/.env
-	echo "Applied frontend/.env from local machine"
-elif [[ ! -f frontend/.env ]]; then
-	cp frontend/.env.example frontend/.env
-fi
+cat > frontend/.env <<EOF
+REACT_APP_API_URL=https://${DOMAIN}/api
+EOF
+chmod 600 frontend/.env
+echo "Generated minimal frontend/.env for deterministic CRA build"
 
 upsert_env "NODE_ENV" "production" "backend/.env"
 upsert_env "PORT" "$BACKEND_PORT" "backend/.env"
@@ -309,8 +307,6 @@ upsert_env "ALLOWED_ORIGINS" "https://${DOMAIN},https://www.${DOMAIN}" "backend/
 upsert_env "ALLOWED_BASE_DOMAIN" "${DOMAIN}" "backend/.env"
 upsert_env "APP_PUBLIC_URL" "https://${DOMAIN}" "backend/.env"
 upsert_env "MPESA_CALLBACK_URL" "https://${DOMAIN}/api/mpesa/callback" "backend/.env"
-
-upsert_env "REACT_APP_API_URL" "https://${DOMAIN}/api" "frontend/.env"
 
 echo "[4/8] Installing backend dependencies"
 cd "$PROJECT_DIR/backend"
@@ -656,13 +652,11 @@ elif [[ ! -f backend/.env ]]; then
 	echo "Created backend/.env from template"
 fi
 
-if [[ -f "$ENV_SYNC_DIR/frontend.env" ]]; then
-	cp "$ENV_SYNC_DIR/frontend.env" frontend/.env
-	chmod 600 frontend/.env
-	echo "Applied frontend/.env from local machine"
-elif [[ ! -f frontend/.env ]]; then
-	cp frontend/.env.example frontend/.env
-fi
+cat > frontend/.env <<EOF
+REACT_APP_API_URL=https://${DOMAIN}/api
+EOF
+chmod 600 frontend/.env
+echo "Generated minimal frontend/.env for deterministic CRA build"
 
 upsert_env "NODE_ENV" "production" "backend/.env"
 upsert_env "PORT" "$BACKEND_PORT" "backend/.env"
@@ -670,8 +664,6 @@ upsert_env "ALLOWED_ORIGINS" "https://${DOMAIN},https://www.${DOMAIN}" "backend/
 upsert_env "ALLOWED_BASE_DOMAIN" "${DOMAIN}" "backend/.env"
 upsert_env "APP_PUBLIC_URL" "https://${DOMAIN}" "backend/.env"
 upsert_env "MPESA_CALLBACK_URL" "https://${DOMAIN}/api/mpesa/callback" "backend/.env"
-
-upsert_env "REACT_APP_API_URL" "https://${DOMAIN}/api" "frontend/.env"
 
 echo "[4/8] Installing backend dependencies"
 cd "$PROJECT_DIR/backend"
