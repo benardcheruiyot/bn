@@ -435,6 +435,7 @@ class MpesaService {
 
       let response;
       let lastError;
+      let selectedRoutingProfile = null;
 
       for (let attempt = 0; attempt < routingProfiles.length; attempt += 1) {
         const routingProfile = routingProfiles[attempt];
@@ -453,6 +454,7 @@ class MpesaService {
 
         try {
           response = await this.executeStkPush(accessToken, payload);
+          selectedRoutingProfile = routingProfile;
           break;
         } catch (error) {
           lastError = error;
@@ -492,9 +494,9 @@ class MpesaService {
         merchantRequestId: response.MerchantRequestID,
         rawRequest: {
           routingProfile: {
-            businessShortCode: payload.BusinessShortCode,
-            partyB: payload.PartyB,
-            transactionType: payload.TransactionType,
+            businessShortCode: selectedRoutingProfile?.businessShortCode || null,
+            partyB: selectedRoutingProfile?.partyB || null,
+            transactionType: selectedRoutingProfile?.transactionType || null,
           },
         },
         rawResponse: response,
