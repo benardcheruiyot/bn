@@ -67,7 +67,7 @@ jobs:
           script_stop: true
           envs: APP_DOMAIN,CERTBOT_EMAIL,DEPLOY_REPO,DEPLOY_BRANCH,DEPLOY_PATH,PM2_APP_NAME,BACKEND_PORT,APP_SLUG
           script: |
-            set -eu
+            set -euxo pipefail
 
             if [ -z "${APP_DOMAIN:-}" ]; then
               echo "Missing required variable: APP_DOMAIN"
@@ -150,7 +150,11 @@ jobs:
               set -- "$@" --backend-port "$BACKEND_PORT"
             fi
 
-            bash ./deploy_and_restart.sh "$@"
+            if command -v sudo >/dev/null 2>&1; then
+              sudo -n bash ./deploy_and_restart.sh "$@"
+            else
+              bash ./deploy_and_restart.sh "$@"
+            fi
 
       - name: Verify domain and API health
         shell: bash
