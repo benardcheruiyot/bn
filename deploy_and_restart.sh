@@ -136,7 +136,7 @@ if [[ -n "${SSH_PASSWORD:-}" ]]; then
 	fi
 	# Force password auth in CI when a password secret is provided.
 	# This avoids exhausting auth attempts on invalid/extra agent keys.
-	SSH_PASSWORD_OPTS=(-o PubkeyAuthentication=no -o PreferredAuthentications=password -o NumberOfPasswordPrompts=1)
+	SSH_PASSWORD_OPTS=(-o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o KbdInteractiveAuthentication=yes -o NumberOfPasswordPrompts=1)
 	SSH_CMD=(sshpass -p "$SSH_PASSWORD" ssh "${SSH_BASE_OPTS[@]}" "${SSH_PASSWORD_OPTS[@]}")
 	SCP_CMD=(sshpass -p "$SSH_PASSWORD" scp "${SSH_BASE_OPTS[@]}" "${SSH_PASSWORD_OPTS[@]}")
 else
