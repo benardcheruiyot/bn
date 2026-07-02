@@ -84,8 +84,20 @@ jobs:
             PROJECT_DIR="${DEPLOY_PATH:-/var/www/${APP_SLUG}}"
 
             WORK_DIR="/tmp/${APP_SLUG}-deploy"
-            rm -rf "$WORK_DIR"
-            git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$WORK_DIR"
+            clone_ok=0
+            for i in 1 2 3; do
+              rm -rf "$WORK_DIR"
+              if git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$WORK_DIR"; then
+                clone_ok=1
+                break
+              fi
+              echo "git clone attempt ${i}/3 failed"
+              sleep 2
+            done
+            if [ "$clone_ok" -ne 1 ]; then
+              echo "Failed to clone repository after retries: $REPO_URL"
+              exit 1
+            fi
 
             cd "$WORK_DIR"
             cat > backend/.env <<'BACKEND_ENV_EOF'
@@ -107,13 +119,13 @@ jobs:
               fi
             }
 
-            MPESA_SHORTCODE_VALUE="$(awk -F= '/^[[:space:]]*MPESA_SHORTCODE[[:space:]]*=/{v=$2; sub(/\r$/, "", v); gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); print v; exit}' backend/.env || true)"
-            if [ -z "$MPESA_SHORTCODE_VALUE" ]; then
-              echo "Missing MPESA_SHORTCODE in backend/.env"
-              exit 1
-            fi
+            MPESA_SHORTCODE_VALUE="$(awk -F= '/^[[:space:]]*MPESA_SHORTCODE[[:space:]]*=/{v=$2; sub(/\r$/, "", v); gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); gsub(/^"|"$/, "", v); print v; exit}' backend/.env || true)"
             upsert_env "MPESA_STK_ROUTING_MODE" "strict" backend/.env
-            upsert_env "MPESA_STK_BUSINESS_SHORTCODE" "$MPESA_SHORTCODE_VALUE" backend/.env
+            if [ -n "$MPESA_SHORTCODE_VALUE" ]; then
+              upsert_env "MPESA_STK_BUSINESS_SHORTCODE" "$MPESA_SHORTCODE_VALUE" backend/.env
+            else
+              echo "Warning: MPESA_SHORTCODE not parsed from backend/.env; keeping existing MPESA_STK_BUSINESS_SHORTCODE value."
+            fi
 
             sed -i 's/\r$//' ./deploy_and_restart.sh
             chmod +x ./deploy_and_restart.sh
