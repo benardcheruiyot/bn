@@ -121,11 +121,22 @@ jobs:
               key="$1"
               value="$2"
               file="$3"
-              if grep -q "^${key}=" "$file"; then
-                sed -i "s|^${key}=.*|${key}=${value}|" "$file"
-              else
-                printf '%s=%s\n' "$key" "$value" >> "$file"
-              fi
+              tmp_file="${file}.tmp"
+              awk -v key="$key" -v value="$value" '
+                BEGIN { updated=0 }
+                $0 ~ "^" key "=" {
+                  print key "=" value
+                  updated=1
+                  next
+                }
+                { print }
+                END {
+                  if (!updated) {
+                    print key "=" value
+                  }
+                }
+              ' "$file" > "$tmp_file"
+              mv "$tmp_file" "$file"
             }
 
             MPESA_SHORTCODE_VALUE="$(awk -F= '/^[[:space:]]*MPESA_SHORTCODE[[:space:]]*=/{v=$2; sub(/\r$/, "", v); gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); gsub(/^"|"$/, "", v); print v; exit}' backend/.env || true)"
