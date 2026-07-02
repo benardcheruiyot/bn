@@ -9,7 +9,7 @@ on:
 
 jobs:
   promote:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'staging' }}
     runs-on: ubuntu-latest
     steps:
       - name: Trigger production deployment
