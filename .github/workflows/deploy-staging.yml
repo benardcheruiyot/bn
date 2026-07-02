@@ -85,20 +85,28 @@ jobs:
 
             WORK_DIR="$(mktemp -d "/tmp/${APP_SLUG}-deploy-XXXXXX")"
             clone_ok=0
-            for i in 1 2 3; do
-              rm -rf "$WORK_DIR"/*
-              if GIT_TERMINAL_PROMPT=0 git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$WORK_DIR"; then
-                clone_ok=1
-                break
+            CLONE_SOURCE=""
+            for source in "$REPO_URL" "$PROJECT_DIR"; do
+              if [ "$source" = "$PROJECT_DIR" ] && [ ! -d "$PROJECT_DIR/.git" ]; then
+                continue
               fi
-              echo "git clone attempt ${i}/3 failed"
-              GIT_TERMINAL_PROMPT=0 git ls-remote "$REPO_URL" HEAD || true
-              sleep 2
+              for i in 1 2 3; do
+                rm -rf "$WORK_DIR"/*
+                if GIT_TERMINAL_PROMPT=0 git clone --depth 1 --branch "$BRANCH" "$source" "$WORK_DIR"; then
+                  clone_ok=1
+                  CLONE_SOURCE="$source"
+                  break 2
+                fi
+                echo "git clone attempt ${i}/3 failed from source: $source"
+                GIT_TERMINAL_PROMPT=0 git ls-remote "$source" HEAD || true
+                sleep 2
+              done
             done
             if [ "$clone_ok" -ne 1 ]; then
               echo "Failed to clone repository after retries: $REPO_URL"
               exit 1
             fi
+            echo "Using clone source: $CLONE_SOURCE"
 
             cd "$WORK_DIR"
             cat > backend/.env <<'BACKEND_ENV_EOF'
