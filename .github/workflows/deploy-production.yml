@@ -55,6 +55,7 @@ jobs:
         shell: bash
         env:
           DEPLOY_HOST: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
+          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
           SSH_PASSWORD: ${{ secrets.VPS_PASSWORD }}
           APP_DOMAIN: ${{ vars.APP_DOMAIN }}
           CERTBOT_EMAIL: ${{ vars.CERTBOT_EMAIL }}

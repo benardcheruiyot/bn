@@ -129,7 +129,15 @@ LOCAL_BACKEND_ENV="${SCRIPT_DIR}/backend/.env"
 LOCAL_FRONTEND_ENV="${SCRIPT_DIR}/frontend/.env"
 
 SSH_BASE_OPTS=(-o StrictHostKeyChecking=accept-new)
-if [[ -n "${SSH_PASSWORD:-}" ]]; then
+SSH_KEY_FILE=""
+if [[ -n "${SSH_PRIVATE_KEY:-}" ]]; then
+	SSH_KEY_FILE="$(mktemp)"
+	chmod 600 "$SSH_KEY_FILE"
+	printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_KEY_FILE"
+	SSH_KEY_OPTS=(-i "$SSH_KEY_FILE" -o IdentitiesOnly=yes -o PreferredAuthentications=publickey)
+	SSH_CMD=(ssh "${SSH_BASE_OPTS[@]}" "${SSH_KEY_OPTS[@]}")
+	SCP_CMD=(scp "${SSH_BASE_OPTS[@]}" "${SSH_KEY_OPTS[@]}")
+elif [[ -n "${SSH_PASSWORD:-}" ]]; then
 	if ! command -v sshpass >/dev/null 2>&1; then
 		echo "SSH_PASSWORD is set but sshpass is not installed."
 		exit 1
@@ -144,8 +152,23 @@ else
 	SCP_CMD=(scp "${SSH_BASE_OPTS[@]}")
 fi
 
+cleanup_ssh_key() {
+	if [[ -n "$SSH_KEY_FILE" && -f "$SSH_KEY_FILE" ]]; then
+		rm -f "$SSH_KEY_FILE"
+	fi
+}
+trap cleanup_ssh_key EXIT
+
 echo "Starting remote recovery on ${HOST} for ${DOMAIN}"
 echo "Deployment identity: app_slug=${APP_SLUG} pm2=${PM2_APP_NAME} project_dir=${PROJECT_DIR}"
+
+echo "Validating SSH connectivity"
+if ! "${SSH_CMD[@]}" "$HOST" "echo ssh-ok" >/dev/null 2>&1; then
+	echo "SSH authentication failed for ${HOST}."
+	echo "If using key auth, verify VPS_SSH_KEY matches authorized_keys for VPS_USER and key is unencrypted."
+	echo "If using password auth, verify VPS_PASSWORD and allow PasswordAuthentication on the server."
+	exit 1
+fi
 
 if [[ "$SYNC_ENV" == "1" ]]; then
 	echo "Syncing local env files to remote temporary location"
