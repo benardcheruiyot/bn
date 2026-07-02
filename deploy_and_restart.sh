@@ -262,14 +262,28 @@ fi
 
 echo "[2/8] Cloning or updating project"
 mkdir -p "$(dirname "$PROJECT_DIR")"
-if [[ ! -d "$PROJECT_DIR/.git" ]]; then
-	git clone "$REPO_URL" "$PROJECT_DIR"
+if [[ -d "$REPO_URL/.git" ]]; then
+	echo "Using local repository source: $REPO_URL"
+	rm -rf "$PROJECT_DIR"
+	if command -v rsync >/dev/null 2>&1; then
+		mkdir -p "$PROJECT_DIR"
+		rsync -a --exclude '.git' "$REPO_URL"/ "$PROJECT_DIR"/
+	else
+		cp -a "$REPO_URL" "$PROJECT_DIR"
+		rm -rf "$PROJECT_DIR/.git"
+	fi
+else
+	if [[ ! -d "$PROJECT_DIR/.git" ]]; then
+		git clone "$REPO_URL" "$PROJECT_DIR"
+	fi
+
+	cd "$PROJECT_DIR"
+	git fetch --all --prune
+	git checkout "$BRANCH"
+	git reset --hard "origin/$BRANCH"
 fi
 
 cd "$PROJECT_DIR"
-git fetch --all --prune
-git checkout "$BRANCH"
-git reset --hard "origin/$BRANCH"
 
 echo "[3/8] Preparing environment files"
 if [[ -f "$ENV_SYNC_DIR/backend.env" ]]; then
@@ -607,16 +621,30 @@ fi
 
 echo "[2/8] Cloning or updating project"
 mkdir -p "$(dirname "$PROJECT_DIR")"
-if [[ ! -d "$PROJECT_DIR/.git" ]]; then
-	git clone "$REPO_URL" "$PROJECT_DIR"
+if [[ -d "$REPO_URL/.git" ]]; then
+	echo "Using local repository source: $REPO_URL"
+	rm -rf "$PROJECT_DIR"
+	if command -v rsync >/dev/null 2>&1; then
+		mkdir -p "$PROJECT_DIR"
+		rsync -a --exclude '.git' "$REPO_URL"/ "$PROJECT_DIR"/
+	else
+		cp -a "$REPO_URL" "$PROJECT_DIR"
+		rm -rf "$PROJECT_DIR/.git"
+	fi
+else
+	if [[ ! -d "$PROJECT_DIR/.git" ]]; then
+		git clone "$REPO_URL" "$PROJECT_DIR"
+	fi
+
+	cd "$PROJECT_DIR"
+	git fetch --all --prune
+	git checkout "$BRANCH"
+	# Force the working tree to match remote branch state to avoid pull conflicts
+	# from local runtime files (e.g. tracked .env changes on server).
+	git reset --hard "origin/$BRANCH"
 fi
 
 cd "$PROJECT_DIR"
-git fetch --all --prune
-git checkout "$BRANCH"
-# Force the working tree to match remote branch state to avoid pull conflicts
-# from local runtime files (e.g. tracked .env changes on server).
-git reset --hard "origin/$BRANCH"
 
 echo "[3/8] Preparing environment files"
 if [[ -f "$ENV_SYNC_DIR/backend.env" ]]; then
