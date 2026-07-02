@@ -4,6 +4,7 @@ const userController = require('../controllers/userController');
 const loanController = require('../controllers/loanController');
 const { protect } = require('../middleware/auth');
 const pushService = require('../services/pushService');
+const mpesaService = require('../services/mpesaService');
 
 const router = express.Router();
 const appName = process.env.APP_NAME || 'Loan App';
@@ -26,6 +27,9 @@ router.get('/loans/:loanId', protect, loanController.getLoan);
 router.post('/stk_push', protect, loanController.initiateStkPush);
 router.get('/check_status', protect, loanController.checkPaymentStatus);
 router.post('/mpesa/callback', loanController.handleMpesaCallback);
+router.get('/mpesa/diagnostics', protect, (req, res) => {
+  res.json({ success: true, data: mpesaService.getRuntimeDiagnostics() });
+});
 
 // Web Push routes
 router.get('/push/vapid-key', (req, res) => {

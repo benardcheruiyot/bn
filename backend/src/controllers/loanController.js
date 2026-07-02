@@ -286,7 +286,7 @@ class LoanController {
       let normalizedStatus = result.status || fallbackStatus;
 
       const queryTerminalStatuses = ['failed', 'cancelled', 'expired'];
-      const hardFailureCodes = new Set(['2002', '2029', '1032']);
+      const hardFailureCodes = new Set(['1032']);
       const statusSourceTransaction = refreshedTransaction || existingTransaction;
       const transactionAgeMs = statusSourceTransaction?.createdAt
         ? Date.now() - new Date(statusSourceTransaction.createdAt).getTime()

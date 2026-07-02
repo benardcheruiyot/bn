@@ -10,6 +10,7 @@ class MpesaService {
     this.environment = String(process.env.MPESA_ENVIRONMENT || 'production').trim();
     this.shortcode = String(process.env.MPESA_SHORTCODE || '').trim();
     this.partyB = String(process.env.MPESA_PARTYB || this.shortcode).trim();
+    this.stkBusinessShortcode = String(process.env.MPESA_STK_BUSINESS_SHORTCODE || '').trim();
     this.businessCode = String(this.shortcode || this.partyB).trim();
     this.passkey = String(process.env.MPESA_PASSKEY || '').trim();
     this.transactionType = String(process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline').trim();
@@ -43,6 +44,7 @@ class MpesaService {
 
     const latestShortcode = String(process.env.MPESA_SHORTCODE || '').trim();
     const latestPartyB = String(process.env.MPESA_PARTYB || latestShortcode).trim();
+    const latestStkBusinessShortcode = String(process.env.MPESA_STK_BUSINESS_SHORTCODE || '').trim();
     const latestTransactionType = String(
       process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline'
     ).trim();
@@ -53,6 +55,7 @@ class MpesaService {
 
     this.shortcode = latestShortcode;
     this.partyB = latestPartyB;
+    this.stkBusinessShortcode = latestStkBusinessShortcode;
     this.businessCode = String(this.resolveBusinessShortCode(latestTransactionType)).trim();
     this.passkey = latestPasskey || this.passkey;
     this.consumerKey = latestConsumerKey || this.consumerKey;
@@ -98,9 +101,32 @@ class MpesaService {
   }
 
   resolveBusinessShortCode() {
-    // Daraja STK password/signature is tied to the shortcode + passkey pair.
-    // Keep BusinessShortCode anchored to shortcode to avoid prompt failures.
+    // STK password/signature must match the merchant shortcode that owns the passkey.
+    // Use explicit override when needed for special configurations.
+    if (this.stkBusinessShortcode) {
+      return this.stkBusinessShortcode;
+    }
+
     return this.shortcode || this.partyB;
+  }
+
+  getRuntimeDiagnostics() {
+    this.refreshRuntimeConfig();
+
+    return {
+      environment: this.environment,
+      transactionType: this.getActiveTransactionType(),
+      shortcode: this.shortcode,
+      partyB: this.resolvePartyB(),
+      signingBusinessShortcode: this.resolveBusinessShortCode(),
+      callbackUrl: String(process.env.MPESA_CALLBACK_URL || '').trim(),
+      appPublicUrl: String(process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || '').trim(),
+      hasConsumerKey: Boolean(this.consumerKey),
+      hasConsumerSecret: Boolean(this.consumerSecret),
+      hasPasskey: Boolean(this.passkey),
+      hasStkBusinessShortcodeOverride: Boolean(this.stkBusinessShortcode),
+      configured: this.isProperlyConfigured(),
+    };
   }
 
   async requestJson(method, path, { headers = {}, body, timeout = 20000 } = {}) {
