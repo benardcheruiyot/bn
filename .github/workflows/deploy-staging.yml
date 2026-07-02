@@ -43,6 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Workflow SHA: ${GITHUB_SHA}"
+          bash -n deploy_and_restart.sh
           grep -n "SSH auth mode:" deploy_and_restart.sh
           grep -n "Validating SSH connectivity" deploy_and_restart.sh
           grep -n "run-on-remote" deploy_and_restart.sh
@@ -57,8 +58,6 @@ jobs:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           PM2_APP_NAME: ${{ vars.PM2_APP_NAME }}
           BACKEND_PORT: ${{ vars.BACKEND_PORT }}
-          BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
-          FRONTEND_ENV_FILE: ${{ secrets.FRONTEND_ENV_FILE }}
           APP_SLUG: tala-mkopaji-com
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -66,9 +65,9 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           password: ${{ secrets.VPS_PASSWORD }}
           script_stop: true
-          envs: APP_DOMAIN,CERTBOT_EMAIL,DEPLOY_REPO,DEPLOY_BRANCH,DEPLOY_PATH,PM2_APP_NAME,BACKEND_PORT,BACKEND_ENV_FILE,FRONTEND_ENV_FILE,APP_SLUG
+          envs: APP_DOMAIN,CERTBOT_EMAIL,DEPLOY_REPO,DEPLOY_BRANCH,DEPLOY_PATH,PM2_APP_NAME,BACKEND_PORT,APP_SLUG
           script: |
-            set -euo pipefail
+            set -eu
 
             if [ -z "${APP_DOMAIN:-}" ]; then
               echo "Missing required variable: APP_DOMAIN"
@@ -89,30 +88,35 @@ jobs:
             git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$WORK_DIR"
 
             cd "$WORK_DIR"
-            printf '%s' "$BACKEND_ENV_FILE" > backend/.env
-            printf '%s' "$FRONTEND_ENV_FILE" > frontend/.env
+            cat > backend/.env <<'BACKEND_ENV_EOF'
+            ${{ secrets.BACKEND_ENV_FILE }}
+            BACKEND_ENV_EOF
+            cat > frontend/.env <<'FRONTEND_ENV_EOF'
+            ${{ secrets.FRONTEND_ENV_FILE }}
+            FRONTEND_ENV_EOF
+            chmod 600 backend/.env frontend/.env
 
             sed -i 's/\r$//' ./deploy_and_restart.sh
             chmod +x ./deploy_and_restart.sh
 
-            ARGS=(
+            set -- \
               --run-on-remote
               --domain "$APP_DOMAIN"
               --email "$CERTBOT_EMAIL"
               --repo "$REPO_URL"
               --branch "$BRANCH"
               --project-dir "$PROJECT_DIR"
-            )
+            
 
             if [ -n "${PM2_APP_NAME:-}" ]; then
-              ARGS+=(--pm2-app-name "$PM2_APP_NAME")
+              set -- "$@" --pm2-app-name "$PM2_APP_NAME"
             fi
 
             if [ -n "${BACKEND_PORT:-}" ]; then
-              ARGS+=(--backend-port "$BACKEND_PORT")
+              set -- "$@" --backend-port "$BACKEND_PORT"
             fi
 
-            bash ./deploy_and_restart.sh "${ARGS[@]}"
+            bash ./deploy_and_restart.sh "$@"
 
       - name: Verify domain and API health
         shell: bash
