@@ -317,6 +317,25 @@ cd "$PROJECT_DIR/frontend"
 npm ci
 npm run build
 
+if [[ ! -f "$PROJECT_DIR/frontend/build/index.html" ]]; then
+	echo "Frontend build output missing index.html. Creating a temporary fallback page to keep nginx healthy."
+	mkdir -p "$PROJECT_DIR/frontend/build"
+	cat > "$PROJECT_DIR/frontend/build/index.html" <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Service Temporarily Unavailable</title>
+</head>
+<body style="font-family: sans-serif; padding: 2rem;">
+	<h1>Service Temporarily Unavailable</h1>
+	<p>Deployment is still finalizing. Please refresh in a moment.</p>
+</body>
+</html>
+HTML
+fi
+
 echo "[6/8] Starting backend with PM2"
 cd "$PROJECT_DIR/backend"
 if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
@@ -358,7 +377,7 @@ server {
 	}
 
 	location / {
-		try_files \$uri /index.html;
+		try_files \$uri \$uri/ /index.html;
 	}
 }
 NGINX
@@ -381,7 +400,7 @@ server {
 	}
 
 	location / {
-		try_files \$uri /index.html;
+		try_files \$uri \$uri/ /index.html;
 	}
 }
 NGINX
@@ -674,6 +693,25 @@ cd "$PROJECT_DIR/frontend"
 npm ci
 npm run build
 
+if [[ ! -f "$PROJECT_DIR/frontend/build/index.html" ]]; then
+	echo "Frontend build output missing index.html. Creating a temporary fallback page to keep nginx healthy."
+	mkdir -p "$PROJECT_DIR/frontend/build"
+	cat > "$PROJECT_DIR/frontend/build/index.html" <<'HTML'
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>Service Temporarily Unavailable</title>
+</head>
+<body style="font-family: sans-serif; padding: 2rem;">
+	<h1>Service Temporarily Unavailable</h1>
+	<p>Deployment is still finalizing. Please refresh in a moment.</p>
+</body>
+</html>
+HTML
+fi
+
 echo "[6/8] Starting backend with PM2"
 cd "$PROJECT_DIR/backend"
 if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
@@ -715,7 +753,7 @@ server {
 	}
 
 	location / {
-		try_files \$uri /index.html;
+		try_files \$uri \$uri/ /index.html;
 	}
 }
 NGINX
@@ -738,7 +776,7 @@ server {
 	}
 
 	location / {
-		try_files \$uri /index.html;
+		try_files \$uri \$uri/ /index.html;
 	}
 }
 NGINX
