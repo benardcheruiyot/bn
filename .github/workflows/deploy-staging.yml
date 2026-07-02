@@ -20,22 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
-
-      - name: Add server to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Install sshpass (password fallback)
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass
-
       - name: Prepare env files from GitHub Secrets
         shell: bash
         run: |
@@ -61,13 +45,11 @@ jobs:
           echo "Workflow SHA: ${GITHUB_SHA}"
           grep -n "SSH auth mode:" deploy_and_restart.sh
           grep -n "Validating SSH connectivity" deploy_and_restart.sh
+          grep -n "run-on-remote" deploy_and_restart.sh
 
       - name: Run full remote recovery deployment
-        shell: bash
+        uses: appleboy/ssh-action@v1.0.3
         env:
-          DEPLOY_HOST: ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}
-          SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
-          SSH_PASSWORD: ${{ secrets.VPS_PASSWORD }}
           APP_DOMAIN: ${{ vars.APP_DOMAIN }}
           CERTBOT_EMAIL: ${{ vars.CERTBOT_EMAIL }}
           DEPLOY_REPO: ${{ vars.DEPLOY_REPO }}
@@ -75,48 +57,61 @@ jobs:
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           PM2_APP_NAME: ${{ vars.PM2_APP_NAME }}
           BACKEND_PORT: ${{ vars.BACKEND_PORT }}
-        run: |
-          set -euo pipefail
+          BACKEND_ENV_FILE: ${{ secrets.BACKEND_ENV_FILE }}
+          FRONTEND_ENV_FILE: ${{ secrets.FRONTEND_ENV_FILE }}
+          APP_SLUG: tala-mkopaji-com
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          password: ${{ secrets.VPS_PASSWORD }}
+          script_stop: true
+          envs: APP_DOMAIN,CERTBOT_EMAIL,DEPLOY_REPO,DEPLOY_BRANCH,DEPLOY_PATH,PM2_APP_NAME,BACKEND_PORT,BACKEND_ENV_FILE,FRONTEND_ENV_FILE,APP_SLUG
+          script: |
+            set -euo pipefail
 
-          if [ -z "${APP_DOMAIN:-}" ]; then
-            echo "Missing required variable: APP_DOMAIN"
-            exit 1
-          fi
+            if [ -z "${APP_DOMAIN:-}" ]; then
+              echo "Missing required variable: APP_DOMAIN"
+              exit 1
+            fi
 
-          if [ -z "${CERTBOT_EMAIL:-}" ]; then
-            echo "Missing required variable: CERTBOT_EMAIL"
-            exit 1
-          fi
+            if [ -z "${CERTBOT_EMAIL:-}" ]; then
+              echo "Missing required variable: CERTBOT_EMAIL"
+              exit 1
+            fi
 
-          chmod +x ./deploy_and_restart.sh
+            REPO_URL="${DEPLOY_REPO:-https://github.com/${{ github.repository }}.git}"
+            BRANCH="${DEPLOY_BRANCH:-main}"
+            PROJECT_DIR="${DEPLOY_PATH:-/var/www/${APP_SLUG}}"
 
-          ARGS=(
-            --host "$DEPLOY_HOST"
-            --domain "$APP_DOMAIN"
-            --email "$CERTBOT_EMAIL"
-          )
+            WORK_DIR="/tmp/${APP_SLUG}-deploy"
+            rm -rf "$WORK_DIR"
+            git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$WORK_DIR"
 
-          if [ -n "${DEPLOY_REPO:-}" ]; then
-            ARGS+=(--repo "$DEPLOY_REPO")
-          fi
+            cd "$WORK_DIR"
+            printf '%s' "$BACKEND_ENV_FILE" > backend/.env
+            printf '%s' "$FRONTEND_ENV_FILE" > frontend/.env
 
-          if [ -n "${DEPLOY_BRANCH:-}" ]; then
-            ARGS+=(--branch "$DEPLOY_BRANCH")
-          fi
+            chmod +x ./deploy_and_restart.sh
 
-          if [ -n "${DEPLOY_PATH:-}" ]; then
-            ARGS+=(--project-dir "$DEPLOY_PATH")
-          fi
+            ARGS=(
+              --run-on-remote
+              --domain "$APP_DOMAIN"
+              --email "$CERTBOT_EMAIL"
+              --repo "$REPO_URL"
+              --branch "$BRANCH"
+              --project-dir "$PROJECT_DIR"
+            )
 
-          if [ -n "${PM2_APP_NAME:-}" ]; then
-            ARGS+=(--pm2-app-name "$PM2_APP_NAME")
-          fi
+            if [ -n "${PM2_APP_NAME:-}" ]; then
+              ARGS+=(--pm2-app-name "$PM2_APP_NAME")
+            fi
 
-          if [ -n "${BACKEND_PORT:-}" ]; then
-            ARGS+=(--backend-port "$BACKEND_PORT")
-          fi
+            if [ -n "${BACKEND_PORT:-}" ]; then
+              ARGS+=(--backend-port "$BACKEND_PORT")
+            fi
 
-          ./deploy_and_restart.sh "${ARGS[@]}"
+            ./deploy_and_restart.sh "${ARGS[@]}"
 
       - name: Verify domain and API health
         shell: bash
