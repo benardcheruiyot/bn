@@ -437,45 +437,58 @@ class MpesaService {
       let lastError;
       let selectedRoutingProfile = null;
 
-      for (let attempt = 0; attempt < routingProfiles.length; attempt += 1) {
-        const routingProfile = routingProfiles[attempt];
-        const payload = this.buildStkPayload({
-          normalizedPhone,
-          amount,
-          callbackUrl,
-          timestamp,
-          routingProfile,
-        });
+      for (let profileIndex = 0; profileIndex < routingProfiles.length; profileIndex += 1) {
+        const routingProfile = routingProfiles[profileIndex];
+        const maxNetworkRetries = 1;
+        let networkRetries = 0;
 
-        console.log(
-          `[M-Pesa STK] Routing config -> SigningShortCode: ${routingProfile.businessShortCode}, DestinationPartyB: ${routingProfile.partyB}, TransactionType: ${routingProfile.transactionType}`
-        );
-        console.log('[M-Pesa STK] Request payload:', payload);
+        while (networkRetries <= maxNetworkRetries) {
+          const payload = this.buildStkPayload({
+            normalizedPhone,
+            amount,
+            callbackUrl,
+            timestamp,
+            routingProfile,
+          });
 
-        try {
-          response = await this.executeStkPush(accessToken, payload);
-          selectedRoutingProfile = routingProfile;
-          break;
-        } catch (error) {
-          lastError = error;
-          const canRetryNetwork = attempt === 0 && this.shouldRetryStkError(error);
-          const canRetryAlternate = attempt === 0 && this.isMerchantPairingError(error) && routingProfiles.length > 1;
-          console.error(`[M-Pesa STK] Attempt ${attempt + 1} failed:`, error.message);
+          console.log(
+            `[M-Pesa STK] Routing config -> SigningShortCode: ${routingProfile.businessShortCode}, DestinationPartyB: ${routingProfile.partyB}, TransactionType: ${routingProfile.transactionType}`
+          );
+          console.log('[M-Pesa STK] Request payload:', payload);
 
-          if (canRetryAlternate) {
-            console.warn('[M-Pesa STK] Retrying with alternate transaction routing profile.');
-            continue;
-          }
+          try {
+            response = await this.executeStkPush(accessToken, payload);
+            selectedRoutingProfile = routingProfile;
+            break;
+          } catch (error) {
+            lastError = error;
+            const canRetryAlternate =
+              profileIndex === 0 && this.isMerchantPairingError(error) && routingProfiles.length > 1;
+            const canRetryNetwork =
+              networkRetries < maxNetworkRetries && this.shouldRetryStkError(error);
 
-          if (canRetryNetwork) {
-            await new Promise((resolve) => setTimeout(resolve, 1200));
-            attempt -= 1;
-            continue;
-          }
+            console.error(
+              `[M-Pesa STK] Attempt ${profileIndex + 1}.${networkRetries + 1} failed:`,
+              error.message
+            );
 
-          if (!canRetryNetwork) {
+            if (canRetryNetwork) {
+              networkRetries += 1;
+              await new Promise((resolve) => setTimeout(resolve, 1200));
+              continue;
+            }
+
+            if (canRetryAlternate) {
+              console.warn('[M-Pesa STK] Retrying with alternate transaction routing profile.');
+              break;
+            }
+
             throw error;
           }
+        }
+
+        if (response) {
+          break;
         }
       }
 
