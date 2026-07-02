@@ -99,13 +99,7 @@ jobs:
             sed -i 's/\r$//' ./deploy_and_restart.sh
             chmod +x ./deploy_and_restart.sh
 
-            set -- \
-              --run-on-remote
-              --domain "$APP_DOMAIN"
-              --email "$CERTBOT_EMAIL"
-              --repo "$REPO_URL"
-              --branch "$BRANCH"
-              --project-dir "$PROJECT_DIR"
+            set -- --run-on-remote --domain "$APP_DOMAIN" --email "$CERTBOT_EMAIL" --repo "$REPO_URL" --branch "$BRANCH" --project-dir "$PROJECT_DIR"
             
 
             if [ -n "${PM2_APP_NAME:-}" ]; then
