@@ -107,7 +107,7 @@ jobs:
               fi
             }
 
-            MPESA_SHORTCODE_VALUE="$(grep -E '^MPESA_SHORTCODE=' backend/.env | tail -n1 | cut -d= -f2- | tr -d '\r' || true)"
+            MPESA_SHORTCODE_VALUE="$(awk -F= '/^[[:space:]]*MPESA_SHORTCODE[[:space:]]*=/{v=$2; sub(/\r$/, "", v); gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); print v; exit}' backend/.env || true)"
             if [ -z "$MPESA_SHORTCODE_VALUE" ]; then
               echo "Missing MPESA_SHORTCODE in backend/.env"
               exit 1
