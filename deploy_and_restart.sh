@@ -134,8 +134,11 @@ if [[ -n "${SSH_PASSWORD:-}" ]]; then
 		echo "SSH_PASSWORD is set but sshpass is not installed."
 		exit 1
 	fi
-	SSH_CMD=(sshpass -p "$SSH_PASSWORD" ssh "${SSH_BASE_OPTS[@]}")
-	SCP_CMD=(sshpass -p "$SSH_PASSWORD" scp "${SSH_BASE_OPTS[@]}")
+	# Force password auth in CI when a password secret is provided.
+	# This avoids exhausting auth attempts on invalid/extra agent keys.
+	SSH_PASSWORD_OPTS=(-o PubkeyAuthentication=no -o PreferredAuthentications=password -o NumberOfPasswordPrompts=1)
+	SSH_CMD=(sshpass -p "$SSH_PASSWORD" ssh "${SSH_BASE_OPTS[@]}" "${SSH_PASSWORD_OPTS[@]}")
+	SCP_CMD=(sshpass -p "$SSH_PASSWORD" scp "${SSH_BASE_OPTS[@]}" "${SSH_PASSWORD_OPTS[@]}")
 else
 	SSH_CMD=(ssh "${SSH_BASE_OPTS[@]}")
 	SCP_CMD=(scp "${SSH_BASE_OPTS[@]}")
