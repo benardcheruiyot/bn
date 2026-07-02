@@ -91,13 +91,24 @@ class MpesaService {
     return this.runtimeTransactionType || this.transactionType;
   }
 
+  getRoutingProfile(transactionType = this.transactionType) {
+    return {
+      transactionType,
+      businessShortCode: this.resolveBusinessShortCode(transactionType),
+      partyB: this.resolvePartyB(transactionType),
+    };
+  }
+
   isAgentStoreMismatchDescription(text) {
     return /agent number and store number entered do not match/i.test(String(text || ''));
   }
 
-  resolvePartyB() {
-    // Always honor the configured destination account for STK requests.
-    return this.partyB || this.shortcode;
+  resolvePartyB(transactionType = this.transactionType) {
+    if (this.isBuyGoodsTransaction(transactionType)) {
+      return this.partyB || this.shortcode;
+    }
+
+    return this.shortcode || this.partyB;
   }
 
   resolveBusinessShortCode(transactionType = this.transactionType) {
@@ -325,6 +336,36 @@ class MpesaService {
     return !statusCode || statusCode >= 500;
   }
 
+  isMerchantPairingError(error) {
+    const apiErrorCode = String(error.response?.data?.errorCode || '');
+    const message = String(
+      error.response?.data?.errorMessage
+      || error.response?.data?.ResponseDescription
+      || error.message
+      || ''
+    );
+
+    return apiErrorCode === '500.001.1001' || this.isAgentStoreMismatchDescription(message);
+  }
+
+  buildStkPayload({ normalizedPhone, amount, callbackUrl, timestamp, routingProfile }) {
+    return {
+      BusinessShortCode: routingProfile.businessShortCode,
+      Password: Buffer.from(
+        `${routingProfile.businessShortCode}${this.passkey}${timestamp}`
+      ).toString('base64'),
+      Timestamp: timestamp,
+      TransactionType: routingProfile.transactionType,
+      Amount: amount,
+      PartyA: normalizedPhone,
+      PartyB: routingProfile.partyB,
+      PhoneNumber: normalizedPhone,
+      CallBackURL: callbackUrl,
+      AccountReference: `LoanApp-${Date.now()}`,
+      TransactionDesc: 'Loan Processing Fee',
+    };
+  }
+
   async executeStkPush(accessToken, payload) {
     return this.requestJson('POST', '/mpesa/stkpush/v1/processrequest', {
       headers: {
@@ -379,47 +420,60 @@ class MpesaService {
       }
 
       const activeTransactionType = this.getActiveTransactionType();
-      const activeBusinessCode = this.resolveBusinessShortCode(activeTransactionType);
-      const activePartyB = this.resolvePartyB(activeTransactionType);
-      const password = Buffer.from(
-        `${activeBusinessCode}${this.passkey}${timestamp}`
-      ).toString('base64');
-      console.log(
-        `[M-Pesa STK] Routing config -> SigningShortCode: ${activeBusinessCode}, DestinationPartyB: ${activePartyB}, TransactionType: ${activeTransactionType}`
-      );
-      const payload = {
-        BusinessShortCode: activeBusinessCode,
-        Password: password,
-        Timestamp: timestamp,
-        TransactionType: activeTransactionType,
-        Amount: amount,
-        PartyA: normalizedPhone,
-        PartyB: activePartyB,
-        PhoneNumber: normalizedPhone,
-        CallBackURL: callbackUrl,
-        AccountReference: `LoanApp-${Date.now()}`,
-        TransactionDesc: 'Loan Processing Fee',
-      };
+      const primaryRoutingProfile = this.getRoutingProfile(activeTransactionType);
+      const alternateTransactionType = this.getAlternateTransactionType(activeTransactionType);
+      const alternateRoutingProfile = this.getRoutingProfile(alternateTransactionType);
+      const routingProfiles = [primaryRoutingProfile];
 
-      console.log('[M-Pesa STK] Request payload:', payload);
+      if (
+        alternateRoutingProfile.transactionType !== primaryRoutingProfile.transactionType
+        || alternateRoutingProfile.businessShortCode !== primaryRoutingProfile.businessShortCode
+        || alternateRoutingProfile.partyB !== primaryRoutingProfile.partyB
+      ) {
+        routingProfiles.push(alternateRoutingProfile);
+      }
 
       let response;
       let lastError;
 
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
+      for (let attempt = 0; attempt < routingProfiles.length; attempt += 1) {
+        const routingProfile = routingProfiles[attempt];
+        const payload = this.buildStkPayload({
+          normalizedPhone,
+          amount,
+          callbackUrl,
+          timestamp,
+          routingProfile,
+        });
+
+        console.log(
+          `[M-Pesa STK] Routing config -> SigningShortCode: ${routingProfile.businessShortCode}, DestinationPartyB: ${routingProfile.partyB}, TransactionType: ${routingProfile.transactionType}`
+        );
+        console.log('[M-Pesa STK] Request payload:', payload);
+
         try {
           response = await this.executeStkPush(accessToken, payload);
           break;
         } catch (error) {
           lastError = error;
-          const canRetry = attempt < 2 && this.shouldRetryStkError(error);
-          console.error(`[M-Pesa STK] Attempt ${attempt} failed:`, error.message);
+          const canRetryNetwork = attempt === 0 && this.shouldRetryStkError(error);
+          const canRetryAlternate = attempt === 0 && this.isMerchantPairingError(error) && routingProfiles.length > 1;
+          console.error(`[M-Pesa STK] Attempt ${attempt + 1} failed:`, error.message);
 
-          if (!canRetry) {
-            throw error;
+          if (canRetryAlternate) {
+            console.warn('[M-Pesa STK] Retrying with alternate transaction routing profile.');
+            continue;
           }
 
-          await new Promise((resolve) => setTimeout(resolve, 1200));
+          if (canRetryNetwork) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            attempt -= 1;
+            continue;
+          }
+
+          if (!canRetryNetwork) {
+            throw error;
+          }
         }
       }
 
