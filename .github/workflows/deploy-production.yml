@@ -92,6 +92,7 @@ jobs:
             printf '%s' "$BACKEND_ENV_FILE" > backend/.env
             printf '%s' "$FRONTEND_ENV_FILE" > frontend/.env
 
+            sed -i 's/\r$//' ./deploy_and_restart.sh
             chmod +x ./deploy_and_restart.sh
 
             ARGS=(
@@ -111,7 +112,7 @@ jobs:
               ARGS+=(--backend-port "$BACKEND_PORT")
             fi
 
-            ./deploy_and_restart.sh "${ARGS[@]}"
+            bash ./deploy_and_restart.sh "${ARGS[@]}"
 
       - name: Verify domain and API health
         shell: bash
