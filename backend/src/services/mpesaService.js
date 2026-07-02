@@ -14,6 +14,7 @@ class MpesaService {
     this.businessCode = String(this.shortcode || this.partyB).trim();
     this.passkey = String(process.env.MPESA_PASSKEY || '').trim();
     this.transactionType = String(process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline').trim();
+    this.stkRoutingMode = String(process.env.MPESA_STK_ROUTING_MODE || 'auto').trim().toLowerCase();
     this.runtimeTransactionType = this.transactionType;
     this.httpsAgent = new https.Agent({ family: 4, keepAlive: false });
     this.cachedAccessToken = null;
@@ -48,6 +49,7 @@ class MpesaService {
     const latestTransactionType = String(
       process.env.MPESA_TRANSACTION_TYPE || 'CustomerPayBillOnline'
     ).trim();
+    const latestStkRoutingMode = String(process.env.MPESA_STK_ROUTING_MODE || 'auto').trim().toLowerCase();
     const latestPasskey = String(process.env.MPESA_PASSKEY || '').trim();
     const latestConsumerKey = String(process.env.MPESA_CONSUMER_KEY || '').trim();
     const latestConsumerSecret = String(process.env.MPESA_CONSUMER_SECRET || '').trim();
@@ -63,6 +65,7 @@ class MpesaService {
     this.environment = latestEnvironment || this.environment;
 
     this.transactionType = latestTransactionType;
+    this.stkRoutingMode = latestStkRoutingMode || this.stkRoutingMode;
     this.runtimeTransactionType = latestTransactionType;
 
     this.resolvedPartyB = this.resolvePartyB();
@@ -99,9 +102,33 @@ class MpesaService {
     };
   }
 
+  getSigningShortCodeCandidates(transactionType = this.transactionType) {
+    const candidates = [];
+    const pushUnique = (value) => {
+      const normalized = String(value || '').trim();
+      if (!normalized || candidates.includes(normalized)) {
+        return;
+      }
+      candidates.push(normalized);
+    };
+
+    // Respect explicit override first.
+    if (this.stkBusinessShortcode) {
+      pushUnique(this.stkBusinessShortcode);
+      return candidates;
+    }
+
+    pushUnique(this.resolveBusinessShortCode(transactionType));
+    pushUnique(this.shortcode);
+    pushUnique(this.partyB);
+
+    return candidates;
+  }
+
   getRoutingCandidates(transactionType = this.transactionType) {
     const activeType = transactionType;
     const alternateType = this.getAlternateTransactionType(activeType);
+    const transactionTypes = [activeType, alternateType];
     const candidates = [];
 
     const pushUnique = (profile) => {
@@ -121,25 +148,35 @@ class MpesaService {
       }
     };
 
-    const activeDefault = this.getRoutingProfile(activeType);
-    pushUnique(activeDefault);
+    // strict mode: use only the explicitly configured tuple.
+    if (this.stkRoutingMode === 'strict') {
+      pushUnique(this.getRoutingProfile(activeType));
+      return candidates;
+    }
 
-    // Some live setups only accept PartyB matching the signing shortcode.
-    pushUnique({
-      transactionType: activeType,
-      businessShortCode: activeDefault.businessShortCode,
-      partyB: activeDefault.businessShortCode,
-    });
+    for (const txType of transactionTypes) {
+      const defaultProfile = this.getRoutingProfile(txType);
+      const signingShortCodes = this.getSigningShortCodeCandidates(txType);
 
-    const alternateDefault = this.getRoutingProfile(alternateType);
-    pushUnique(alternateDefault);
-    pushUnique({
-      transactionType: alternateType,
-      businessShortCode: alternateDefault.businessShortCode,
-      partyB: alternateDefault.businessShortCode,
-    });
+      for (const signingShortCode of signingShortCodes) {
+        // First, honor configured destination account.
+        pushUnique({
+          transactionType: txType,
+          businessShortCode: signingShortCode,
+          partyB: defaultProfile.partyB,
+        });
 
-    return candidates;
+        // Then try signing shortcode as destination for merchant profiles that require exact match.
+        pushUnique({
+          transactionType: txType,
+          businessShortCode: signingShortCode,
+          partyB: signingShortCode,
+        });
+      }
+    }
+
+    // Bound total attempts to keep user wait times predictable.
+    return candidates.slice(0, 8);
   }
 
   isAgentStoreMismatchDescription(text) {
@@ -170,6 +207,7 @@ class MpesaService {
     return {
       environment: this.environment,
       transactionType: this.getActiveTransactionType(),
+      routingMode: this.stkRoutingMode,
       shortcode: this.shortcode,
       partyB: this.resolvePartyB(),
       signingBusinessShortcode: this.resolveBusinessShortCode(),

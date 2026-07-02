@@ -189,6 +189,10 @@ MPESA_PARTYB=your_buygoods_or_paybill_destination
 MPESA_PASSKEY=your_production_passkey
 MPESA_ENVIRONMENT=production
 MPESA_TRANSACTION_TYPE=CustomerBuyGoodsOnline
+# optional: force one exact tuple in production once verified
+MPESA_STK_ROUTING_MODE=auto
+# optional: explicit signing shortcode if different from MPESA_SHORTCODE
+MPESA_STK_BUSINESS_SHORTCODE=
 MPESA_CALLBACK_URL=https://app.example.com/api/mpesa/callback
 
 # Loan Settings
@@ -203,6 +207,10 @@ PROCESSING_FEE_MAX=3500
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 ```
+
+STK routing best practice:
+- Set `MPESA_STK_ROUTING_MODE=auto` while onboarding or troubleshooting live merchant tuple pairing.
+- After confirming a stable tuple, switch to `MPESA_STK_ROUTING_MODE=strict` and set explicit values for `MPESA_TRANSACTION_TYPE`, `MPESA_SHORTCODE`, `MPESA_PARTYB`, and optional `MPESA_STK_BUSINESS_SHORTCODE`.
 
 ## 🛠️ Development
 
