@@ -9,7 +9,6 @@ const pushService = require('./services/pushService');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
-const isProduction = process.env.NODE_ENV === 'production';
 const reminderIntervalMs = Math.max(
   parseInt(process.env.PUSH_REMINDER_INTERVAL_MS || '3600000', 10) || 3600000,
   60000

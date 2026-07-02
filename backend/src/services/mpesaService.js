@@ -59,11 +59,8 @@ class MpesaService {
     this.consumerSecret = latestConsumerSecret || this.consumerSecret;
     this.environment = latestEnvironment || this.environment;
 
-    const previousConfiguredType = this.transactionType;
     this.transactionType = latestTransactionType;
-    if (!this.runtimeTransactionType || this.runtimeTransactionType === previousConfiguredType) {
-      this.runtimeTransactionType = latestTransactionType;
-    }
+    this.runtimeTransactionType = latestTransactionType;
 
     this.resolvedPartyB = this.resolvePartyB();
   }
@@ -95,12 +92,12 @@ class MpesaService {
     return /agent number and store number entered do not match/i.test(String(text || ''));
   }
 
-  resolvePartyB(transactionType = this.transactionType) {
+  resolvePartyB() {
     // Always honor the configured destination account for STK requests.
     return this.partyB || this.shortcode;
   }
 
-  resolveBusinessShortCode(transactionType = this.transactionType) {
+  resolveBusinessShortCode() {
     // Daraja STK password/signature is tied to the shortcode + passkey pair.
     // Keep BusinessShortCode anchored to shortcode to avoid prompt failures.
     return this.shortcode || this.partyB;
@@ -427,8 +424,11 @@ class MpesaService {
       return {
         success: false,
         message:
+          (apiError?.errorCode === '500.001.1001' && /Duplicated MSISDN/i.test(String(apiError?.errorMessage || ''))
+            ? 'You already have a pending M-Pesa prompt on this phone. Complete or cancel it, then try again.'
+            : null) ||
           (apiError?.errorCode === '500.001.1001'
-            ? 'M-Pesa rejected the merchant configuration. Confirm the shortcode, passkey, and transaction type belong to the same live merchant.'
+            ? 'M-Pesa rejected this request. Confirm shortcode, passkey, transaction type, and destination account (PartyB) are correctly paired for your live merchant setup.'
             : null) ||
           apiError?.errorMessage ||
           apiError?.ResponseDescription ||
@@ -488,15 +488,10 @@ class MpesaService {
       const isPending = ['1', '1037', '1019'].includes(String(response.ResultCode || ''));
       const isCancelled = normalizedResultCode === '1032';
       const mismatchDetected = !isSuccess && this.isAgentStoreMismatchDescription(response.ResultDesc);
-
       if (mismatchDetected) {
-        const nextTransactionType = this.getAlternateTransactionType(this.getActiveTransactionType());
-        if (nextTransactionType !== this.runtimeTransactionType) {
-          this.runtimeTransactionType = nextTransactionType;
-          console.warn(
-            `[M-Pesa] Detected Agent/Store mismatch. Switching runtime transaction type to ${this.runtimeTransactionType} for subsequent STK attempts.`
-          );
-        }
+        console.warn(
+          '[M-Pesa] Agent/Store mismatch detected. Verify MPESA_SHORTCODE, MPESA_PARTYB, passkey, and Buy Goods profile mapping in Daraja portal.'
+        );
       }
 
       let normalizedStatus = 'failed';

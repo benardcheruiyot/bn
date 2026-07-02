@@ -52,7 +52,8 @@ class User {
   }
 
   toJSON() {
-    const { password, ...user } = this;
+    const user = { ...this };
+    delete user.password;
     return user;
   }
 }

@@ -4,7 +4,6 @@ const path = require('path');
 
 // In-memory subscription store (keyed by userId)
 const subscriptions = new Map();
-const appName = process.env.APP_NAME || 'Loan App';
 const appUrl = process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
 const subscriptionsFilePath = path.resolve(__dirname, '../../data/push-subscriptions.json');
 let pushEnabled = false;

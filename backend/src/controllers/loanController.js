@@ -167,6 +167,16 @@ class LoanController {
         loanService.validateLoanAmount(Number(resolvedLoanAmount));
       }
 
+      // Avoid duplicate STK prompts on the same account while one is still active.
+      const lastTransaction = await MpesaTransaction.findLastByUserId(req.user.id);
+      if (
+        lastTransaction
+        && ['initiated', 'pending'].includes(lastTransaction.status)
+        && (Date.now() - new Date(lastTransaction.createdAt).getTime()) < 120000
+      ) {
+        return next(new AppError('A payment request is already in progress. Complete or cancel it, then retry in a moment.', 409));
+      }
+
       const result = await mpesaService.initiateStkPush(phone, amount);
 
       if (!result.success) {
@@ -276,17 +286,21 @@ class LoanController {
       let normalizedStatus = result.status || fallbackStatus;
 
       const queryTerminalStatuses = ['failed', 'cancelled', 'expired'];
+      const hardFailureCodes = new Set(['2002', '2029', '1032']);
       const statusSourceTransaction = refreshedTransaction || existingTransaction;
       const transactionAgeMs = statusSourceTransaction?.createdAt
         ? Date.now() - new Date(statusSourceTransaction.createdAt).getTime()
         : Number.POSITIVE_INFINITY;
       const callbackConfirmed = Boolean(statusSourceTransaction?.callbackData);
+      const resultCode = String(result.resultCode || '').trim();
+      const hasHardFailureCode = hardFailureCodes.has(resultCode);
 
       // Some STK status queries can briefly return terminal states before the user finishes
       // handset confirmation. Keep polling as pending for a short grace window unless callback-confirmed.
       if (
         queryTerminalStatuses.includes(normalizedStatus) &&
         !callbackConfirmed &&
+        !hasHardFailureCode &&
         transactionAgeMs < TERMINAL_STATUS_GRACE_MS
       ) {
         console.log(

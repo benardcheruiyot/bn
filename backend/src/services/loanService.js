@@ -1,6 +1,5 @@
 // Loan Service
 const Loan = require('../models/Loan');
-const User = require('../models/User');
 
 class LoanService {
   async createLoanApplication(userId, loanData) {
