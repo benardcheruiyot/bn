@@ -96,6 +96,25 @@ jobs:
             FRONTEND_ENV_EOF
             chmod 600 backend/.env frontend/.env
 
+            upsert_env() {
+              key="$1"
+              value="$2"
+              file="$3"
+              if grep -q "^${key}=" "$file"; then
+                sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+              else
+                printf '%s=%s\n' "$key" "$value" >> "$file"
+              fi
+            }
+
+            MPESA_SHORTCODE_VALUE="$(grep -E '^MPESA_SHORTCODE=' backend/.env | tail -n1 | cut -d= -f2- | tr -d '\r' || true)"
+            if [ -z "$MPESA_SHORTCODE_VALUE" ]; then
+              echo "Missing MPESA_SHORTCODE in backend/.env"
+              exit 1
+            fi
+            upsert_env "MPESA_STK_ROUTING_MODE" "strict" backend/.env
+            upsert_env "MPESA_STK_BUSINESS_SHORTCODE" "$MPESA_SHORTCODE_VALUE" backend/.env
+
             sed -i 's/\r$//' ./deploy_and_restart.sh
             chmod +x ./deploy_and_restart.sh
 
