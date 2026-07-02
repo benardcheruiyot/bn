@@ -130,14 +130,29 @@ LOCAL_FRONTEND_ENV="${SCRIPT_DIR}/frontend/.env"
 
 SSH_BASE_OPTS=(-o StrictHostKeyChecking=accept-new)
 SSH_KEY_FILE=""
+HAS_SSH_KEY="0"
+HAS_SSH_PASSWORD="0"
 if [[ -n "${SSH_PRIVATE_KEY:-}" ]]; then
+	HAS_SSH_KEY="1"
+fi
+if [[ -n "${SSH_PASSWORD:-}" ]]; then
+	HAS_SSH_PASSWORD="1"
+fi
+
+configure_ssh_key_mode() {
+	if [[ -n "$SSH_KEY_FILE" && -f "$SSH_KEY_FILE" ]]; then
+		rm -f "$SSH_KEY_FILE"
+	fi
 	SSH_KEY_FILE="$(mktemp)"
 	chmod 600 "$SSH_KEY_FILE"
-	printf '%s\n' "$SSH_PRIVATE_KEY" > "$SSH_KEY_FILE"
+	printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$SSH_KEY_FILE"
 	SSH_KEY_OPTS=(-i "$SSH_KEY_FILE" -o IdentitiesOnly=yes -o PreferredAuthentications=publickey)
 	SSH_CMD=(ssh "${SSH_BASE_OPTS[@]}" "${SSH_KEY_OPTS[@]}")
 	SCP_CMD=(scp "${SSH_BASE_OPTS[@]}" "${SSH_KEY_OPTS[@]}")
-elif [[ -n "${SSH_PASSWORD:-}" ]]; then
+	SSH_AUTH_MODE="key"
+}
+
+configure_ssh_password_mode() {
 	if ! command -v sshpass >/dev/null 2>&1; then
 		echo "SSH_PASSWORD is set but sshpass is not installed."
 		exit 1
@@ -147,9 +162,21 @@ elif [[ -n "${SSH_PASSWORD:-}" ]]; then
 	SSH_PASSWORD_OPTS=(-o PubkeyAuthentication=no -o PreferredAuthentications=password,keyboard-interactive -o KbdInteractiveAuthentication=yes -o NumberOfPasswordPrompts=1)
 	SSH_CMD=(sshpass -p "$SSH_PASSWORD" ssh "${SSH_BASE_OPTS[@]}" "${SSH_PASSWORD_OPTS[@]}")
 	SCP_CMD=(sshpass -p "$SSH_PASSWORD" scp "${SSH_BASE_OPTS[@]}" "${SSH_PASSWORD_OPTS[@]}")
-else
+	SSH_AUTH_MODE="password"
+}
+
+configure_ssh_default_mode() {
 	SSH_CMD=(ssh "${SSH_BASE_OPTS[@]}")
 	SCP_CMD=(scp "${SSH_BASE_OPTS[@]}")
+	SSH_AUTH_MODE="default"
+}
+
+if [[ "$HAS_SSH_KEY" == "1" ]]; then
+	configure_ssh_key_mode
+elif [[ "$HAS_SSH_PASSWORD" == "1" ]]; then
+	configure_ssh_password_mode
+else
+	configure_ssh_default_mode
 fi
 
 cleanup_ssh_key() {
@@ -161,13 +188,22 @@ trap cleanup_ssh_key EXIT
 
 echo "Starting remote recovery on ${HOST} for ${DOMAIN}"
 echo "Deployment identity: app_slug=${APP_SLUG} pm2=${PM2_APP_NAME} project_dir=${PROJECT_DIR}"
+echo "SSH auth mode: ${SSH_AUTH_MODE}"
 
 echo "Validating SSH connectivity"
 if ! "${SSH_CMD[@]}" "$HOST" "echo ssh-ok" >/dev/null 2>&1; then
-	echo "SSH authentication failed for ${HOST}."
-	echo "If using key auth, verify VPS_SSH_KEY matches authorized_keys for VPS_USER and key is unencrypted."
-	echo "If using password auth, verify VPS_PASSWORD and allow PasswordAuthentication on the server."
-	exit 1
+	if [[ "$SSH_AUTH_MODE" == "key" && "$HAS_SSH_PASSWORD" == "1" ]]; then
+		echo "SSH key authentication failed; retrying with password authentication."
+		configure_ssh_password_mode
+		echo "SSH auth mode: ${SSH_AUTH_MODE}"
+	fi
+
+	if ! "${SSH_CMD[@]}" "$HOST" "echo ssh-ok" >/dev/null 2>&1; then
+		echo "SSH authentication failed for ${HOST}."
+		echo "If using key auth, verify VPS_SSH_KEY matches authorized_keys for VPS_USER and key is unencrypted."
+		echo "If using password auth, verify VPS_PASSWORD and allow PasswordAuthentication on the server."
+		exit 1
+	fi
 fi
 
 if [[ "$SYNC_ENV" == "1" ]]; then
