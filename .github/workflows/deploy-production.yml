@@ -51,6 +51,14 @@ jobs:
           printf '%s' "${{ secrets.BACKEND_ENV_FILE }}" > backend/.env
           printf '%s' "${{ secrets.FRONTEND_ENV_FILE }}" > frontend/.env
 
+      - name: Preflight deploy script version
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Workflow SHA: ${GITHUB_SHA}"
+          grep -n "SSH auth mode:" deploy_and_restart.sh
+          grep -n "Validating SSH connectivity" deploy_and_restart.sh
+
       - name: Run full remote recovery deployment
         shell: bash
         env:
