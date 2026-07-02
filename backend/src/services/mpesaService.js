@@ -99,6 +99,49 @@ class MpesaService {
     };
   }
 
+  getRoutingCandidates(transactionType = this.transactionType) {
+    const activeType = transactionType;
+    const alternateType = this.getAlternateTransactionType(activeType);
+    const candidates = [];
+
+    const pushUnique = (profile) => {
+      if (!profile || !profile.businessShortCode || !profile.partyB || !profile.transactionType) {
+        return;
+      }
+
+      const exists = candidates.some(
+        (candidate) =>
+          candidate.transactionType === profile.transactionType
+          && candidate.businessShortCode === profile.businessShortCode
+          && candidate.partyB === profile.partyB
+      );
+
+      if (!exists) {
+        candidates.push(profile);
+      }
+    };
+
+    const activeDefault = this.getRoutingProfile(activeType);
+    pushUnique(activeDefault);
+
+    // Some live setups only accept PartyB matching the signing shortcode.
+    pushUnique({
+      transactionType: activeType,
+      businessShortCode: activeDefault.businessShortCode,
+      partyB: activeDefault.businessShortCode,
+    });
+
+    const alternateDefault = this.getRoutingProfile(alternateType);
+    pushUnique(alternateDefault);
+    pushUnique({
+      transactionType: alternateType,
+      businessShortCode: alternateDefault.businessShortCode,
+      partyB: alternateDefault.businessShortCode,
+    });
+
+    return candidates;
+  }
+
   isAgentStoreMismatchDescription(text) {
     return /agent number and store number entered do not match/i.test(String(text || ''));
   }
@@ -420,18 +463,7 @@ class MpesaService {
       }
 
       const activeTransactionType = this.getActiveTransactionType();
-      const primaryRoutingProfile = this.getRoutingProfile(activeTransactionType);
-      const alternateTransactionType = this.getAlternateTransactionType(activeTransactionType);
-      const alternateRoutingProfile = this.getRoutingProfile(alternateTransactionType);
-      const routingProfiles = [primaryRoutingProfile];
-
-      if (
-        alternateRoutingProfile.transactionType !== primaryRoutingProfile.transactionType
-        || alternateRoutingProfile.businessShortCode !== primaryRoutingProfile.businessShortCode
-        || alternateRoutingProfile.partyB !== primaryRoutingProfile.partyB
-      ) {
-        routingProfiles.push(alternateRoutingProfile);
-      }
+      const routingProfiles = this.getRoutingCandidates(activeTransactionType);
 
       let response;
       let lastError;
@@ -463,7 +495,7 @@ class MpesaService {
           } catch (error) {
             lastError = error;
             const canRetryAlternate =
-              profileIndex === 0 && this.isMerchantPairingError(error) && routingProfiles.length > 1;
+              profileIndex < routingProfiles.length - 1 && this.isMerchantPairingError(error);
             const canRetryNetwork =
               networkRetries < maxNetworkRetries && this.shouldRetryStkError(error);
 
