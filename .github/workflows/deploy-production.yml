@@ -83,15 +83,16 @@ jobs:
             BRANCH="${DEPLOY_BRANCH:-main}"
             PROJECT_DIR="${DEPLOY_PATH:-/var/www/${APP_SLUG}}"
 
-            WORK_DIR="/tmp/${APP_SLUG}-deploy"
+            WORK_DIR="$(mktemp -d "/tmp/${APP_SLUG}-deploy-XXXXXX")"
             clone_ok=0
             for i in 1 2 3; do
-              rm -rf "$WORK_DIR"
-              if git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$WORK_DIR"; then
+              rm -rf "$WORK_DIR"/*
+              if GIT_TERMINAL_PROMPT=0 git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$WORK_DIR"; then
                 clone_ok=1
                 break
               fi
               echo "git clone attempt ${i}/3 failed"
+              GIT_TERMINAL_PROMPT=0 git ls-remote "$REPO_URL" HEAD || true
               sleep 2
             done
             if [ "$clone_ok" -ne 1 ]; then
