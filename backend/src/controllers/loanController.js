@@ -278,13 +278,9 @@ class LoanController {
         }
       }
 
-      const queryRoutingProfile =
-        refreshedTransaction?.rawRequest?.routingProfile
-        || existingTransaction?.rawRequest?.routingProfile
-        || null;
-
       console.log('[Payment Status] Querying M-Pesa API for transaction status...');
-      const result = await mpesaService.checkTransactionStatus(checkoutId, 1, queryRoutingProfile);
+      const routingProfile = existingTransaction?.rawRequest?.routingProfile || null;
+      const result = await mpesaService.checkTransactionStatus(checkoutId, 1, routingProfile);
       console.log('[Payment Status] M-Pesa query result:', result.status);
 
       const refreshedTransaction = await MpesaTransaction.findByCheckoutRequestId(checkoutId);
