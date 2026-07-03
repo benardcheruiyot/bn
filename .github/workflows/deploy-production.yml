@@ -126,14 +126,6 @@ jobs:
               mv "$tmp_file" "$file"
             }
 
-            MPESA_SHORTCODE_VALUE="$(awk -F= '/^[[:space:]]*MPESA_SHORTCODE[[:space:]]*=/{v=$2; sub(/\r$/, "", v); gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); gsub(/^"|"$/, "", v); print v; exit}' backend/.env || true)"
-            upsert_env "MPESA_STK_ROUTING_MODE" "strict" backend/.env
-            if [ -n "$MPESA_SHORTCODE_VALUE" ]; then
-              upsert_env "MPESA_STK_BUSINESS_SHORTCODE" "$MPESA_SHORTCODE_VALUE" backend/.env
-            else
-              echo "Warning: MPESA_SHORTCODE not parsed from backend/.env; keeping existing MPESA_STK_BUSINESS_SHORTCODE value."
-            fi
-
             sed -i 's/\r$//' ./deploy_and_restart.sh
             chmod +x ./deploy_and_restart.sh
 

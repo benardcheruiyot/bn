@@ -390,10 +390,13 @@ const Loan = () => {
             statusResult.status === 'expired'
           ) {
             clearTimeout(paymentPollRef.current);
+            const providerReason = String(statusResult.resultDescription || '').trim();
             Swal.fire({
               icon: 'warning',
               title: 'Loan Not Processed',
-              text: 'Your loan request was not processed because payment was not confirmed. Tap Get Loan Now to send a new STK push.',
+              text: providerReason
+                ? `${providerReason}. Tap Get Loan Now to send a new STK push.`
+                : 'Your loan request was not processed because payment was not confirmed. Tap Get Loan Now to send a new STK push.',
               confirmButtonColor: '#26c2a3',
             });
             if (isMountedRef.current) setLoading(false);
