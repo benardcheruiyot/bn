@@ -433,6 +433,33 @@
   font-size: 1rem;
 }
 
+.mpesa-phone-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.9rem;
+}
+
+.mpesa-phone-row label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #1f5d53;
+}
+
+.mpesa-phone-input {
+  border: 1px solid rgba(14, 159, 140, 0.28);
+  border-radius: 12px;
+  padding: 0.72rem 0.85rem;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mpesa-phone-input:focus {
+  border-color: #0b7a6b;
+  box-shadow: 0 0 0 3px rgba(38, 194, 163, 0.18);
+}
+
 .apply-now-btn {
   border-radius: 18px;
   font-size: 1.03rem;
@@ -577,6 +604,10 @@
     position: sticky;
     bottom: 10px;
     z-index: 6;
+  }
+
+  .mpesa-phone-input {
+    font-size: 0.9rem;
   }
 }
 

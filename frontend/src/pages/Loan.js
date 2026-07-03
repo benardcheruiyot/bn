@@ -20,6 +20,14 @@ const formatLoanReceipt = (loan, checkoutReference, user) => ({
 });
 
 const safaricomMaskedPhoneRegex = /^0(?:7(?:[0-2]\d|4[0-3]|45|46|48|5[7-9]|6[89]|9\d)|11[0-9])\*{4}\d{2}$/;
+const safaricomPhoneRegex = /^(?:\+?254|0)(7(?:[0-2]\d|4[0-3]|45|46|48|5[7-9]|6[89]|9\d)|11[0-9])\d{6}$/;
+
+function normalizePhone(raw) {
+  let p = String(raw || '').replace(/[\s\-().]/g, '');
+  if (p.startsWith('+254')) return '0' + p.slice(4);
+  if (p.startsWith('254')) return '0' + p.slice(3);
+  return p;
+}
 
 const readPendingLoanApplication = () => {
   try {
@@ -60,6 +68,7 @@ const Loan = () => {
   const isMountedRef = useRef(true);
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [mpesaPhone, setMpesaPhone] = useState(user?.phone_number || '');
   const [recentIndex, setRecentIndex] = useState(0);
   const [pendingApplication] = useState(() => readPendingLoanApplication());
   const applyButtonRef = useRef(null);
@@ -193,6 +202,12 @@ const Loan = () => {
   }, [user, navigate]);
 
   useEffect(() => {
+    if (!mpesaPhone && user?.phone_number) {
+      setMpesaPhone(user.phone_number);
+    }
+  }, [user, mpesaPhone]);
+
+  useEffect(() => {
     document.title = 'Loan Options | Loan Clone App';
   }, []);
 
@@ -299,6 +314,17 @@ ${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
       return;
     }
 
+    const normalizedPhone = normalizePhone(mpesaPhone.trim());
+    if (!safaricomPhoneRegex.test(normalizedPhone)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Valid M-Pesa Number Required',
+        html: '<p>Enter an active Safaricom M-Pesa line.</p><p style="margin-top:8px;font-size:0.9rem;color:#555;">Examples: 0712 345 678 or 0110 123 456</p>',
+        confirmButtonColor: '#26c2a3',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -319,7 +345,7 @@ ${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
               <strong>2 months at 10% interest</strong>
             </div>
             <p class="stk-summary-note">
-              A secure M-Pesa payment prompt will be sent to ${user.phone_number}.
+              A secure M-Pesa payment prompt will be sent to ${normalizedPhone}.
             </p>
           </div>
         `,
@@ -362,7 +388,7 @@ ${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
 
       // Initiate STK Push
       const result = await loanService.initiateStkPush(
-        user.phone_number,
+        normalizedPhone,
         selectedLoan.fee,
         selectedLoan.amount,
         selectedLoan.days
@@ -429,7 +455,10 @@ ${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
           if (statusResult.success) {
             clearTimeout(paymentPollRef.current);
 
-            const applicationPayload = formatLoanReceipt(selectedLoan, checkoutReference, user);
+            const applicationPayload = formatLoanReceipt(selectedLoan, checkoutReference, {
+              ...user,
+              phone_number: normalizedPhone,
+            });
             localStorage.setItem('pending_loan_application', JSON.stringify(applicationPayload));
 
             Swal.fire({
@@ -498,7 +527,10 @@ ${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
             try {
               const finalStatusResult = await loanService.checkPaymentStatus(checkoutReference);
               if (finalStatusResult?.success) {
-                const applicationPayload = formatLoanReceipt(selectedLoan, checkoutReference, user);
+                const applicationPayload = formatLoanReceipt(selectedLoan, checkoutReference, {
+                  ...user,
+                  phone_number: normalizedPhone,
+                });
                 localStorage.setItem('pending_loan_application', JSON.stringify(applicationPayload));
 
                 Swal.fire({
@@ -653,6 +685,19 @@ ${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
               </div>
             </div>
           )}
+
+          <div className="mpesa-phone-row">
+            <label htmlFor="mpesa-phone">M-Pesa Number</label>
+            <input
+              id="mpesa-phone"
+              type="tel"
+              className="mpesa-phone-input"
+              value={mpesaPhone}
+              onChange={(e) => setMpesaPhone(e.target.value)}
+              placeholder="0712 345 678"
+              disabled={loading}
+            />
+          </div>
 
           <button
             ref={applyButtonRef}

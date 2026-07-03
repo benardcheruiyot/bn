@@ -22,6 +22,20 @@ class LoanController {
     this.appUrl = process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
   }
 
+  normalizeKenyanPhone(phone) {
+    let value = String(phone || '').trim();
+    value = value.replace(/[\s\-().]/g, '');
+
+    if (value.startsWith('+254')) return `0${value.slice(4)}`;
+    if (value.startsWith('254')) return `0${value.slice(3)}`;
+    return value;
+  }
+
+  isSupportedSafaricomPhone(phone) {
+    const safaricomPhoneRegex = /^(?:\+?254|0)(7(?:[0-2]\d|4[0-3]|45|46|48|5[7-9]|6[89]|9\d)|11[0-9])\d{6}$/;
+    return safaricomPhoneRegex.test(String(phone || ''));
+  }
+
   inferLoanAmountFromFee(processingFee) {
     const feeToLoanMap = {
       120: 5500,
@@ -161,6 +175,11 @@ class LoanController {
         return next(new AppError('Phone number and amount are required', 400));
       }
 
+      const normalizedPhone = this.normalizeKenyanPhone(phone);
+      if (!this.isSupportedSafaricomPhone(normalizedPhone)) {
+        return next(new AppError('Please provide a valid active Safaricom M-Pesa number.', 400));
+      }
+
       loanService.validateProcessingFee(Number(amount));
 
       const resolvedLoanAmount = Number(loanAmount) || this.inferLoanAmountFromFee(amount);
@@ -178,7 +197,7 @@ class LoanController {
         return next(new AppError('A payment request is already in progress. Complete or cancel it, then retry in a moment.', 409));
       }
 
-      const result = await mpesaService.initiateStkPush(phone, amount);
+      const result = await mpesaService.initiateStkPush(normalizedPhone, amount);
 
       if (!result.success) {
         return next(new AppError(result.message, 400));
@@ -188,7 +207,7 @@ class LoanController {
         checkoutRequestId: result.checkoutRequestId,
         merchantRequestId: result.merchantRequestId,
         userId: req.user.id,
-        phone,
+        phone: normalizedPhone,
         amount,
         loanAmount: resolvedLoanAmount,
         termDays: termDays || 60,
