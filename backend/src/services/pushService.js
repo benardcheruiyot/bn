@@ -70,11 +70,17 @@ function configure() {
     return false;
   }
 
-  webpush.setVapidDetails(
-    process.env.VAPID_SUBJECT || 'mailto:admin@app.example.com',
-    publicKey,
-    privateKey
-  );
+  try {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:admin@app.example.com',
+      publicKey,
+      privateKey
+    );
+  } catch (error) {
+    pushEnabled = false;
+    console.error('[Push] Invalid VAPID configuration. Push notifications are disabled:', error.message);
+    return false;
+  }
 
   loadSubscriptions();
   pushEnabled = true;
