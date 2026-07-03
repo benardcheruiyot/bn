@@ -223,6 +223,76 @@ const Loan = () => {
     }, 0);
   };
 
+  const showLiveLogs = async (checkoutId = null) => {
+    try {
+      const liveLogResult = await loanService.getMpesaLiveLog(checkoutId);
+      const payload = liveLogResult?.data;
+
+      if (Array.isArray(payload)) {
+        const items = payload;
+        if (items.length === 0) {
+          await Swal.fire({
+            icon: 'info',
+            title: 'Live STK Logs',
+            text: 'No STK transactions found yet for this account.',
+            confirmButtonColor: '#26c2a3',
+          });
+          return;
+        }
+
+        const summary = items.map((tx, idx) => {
+          const when = tx.updatedAt ? new Date(tx.updatedAt).toLocaleString('en-KE') : 'n/a';
+          const code = tx.resultCode || '-';
+          const desc = tx.resultDescription || '-';
+          return `${idx + 1}. ${tx.checkoutRequestId || 'n/a'} | ${tx.status || 'n/a'} | code=${code}\n${desc}\nUpdated: ${when}`;
+        }).join('\n\n');
+
+        await Swal.fire({
+          icon: 'info',
+          title: 'Latest STK Logs',
+          html: `
+            <div style="text-align:left;font-size:0.9rem;line-height:1.45;max-height:320px;overflow:auto;white-space:pre-wrap;">${summary}</div>
+          `,
+          confirmButtonColor: '#26c2a3',
+        });
+        return;
+      }
+
+      const tx = payload || {};
+      const logs = Array.isArray(tx.logs) ? tx.logs : [];
+      const recentLogs = logs.slice(-12).map((log) => {
+        const at = log.at ? new Date(log.at).toLocaleTimeString('en-KE') : 'n/a';
+        const src = log.source || 'event';
+        const st = log.status || 'n/a';
+        const code = log.resultCode || '-';
+        const desc = log.resultDescription || '-';
+        return `[${at}] ${src} | status=${st} | code=${code} | ${desc}`;
+      });
+
+      await Swal.fire({
+        icon: 'info',
+        title: 'Live STK Logs',
+        html: `
+          <div style="text-align:left;font-size:0.9rem;line-height:1.45;max-height:320px;overflow:auto;white-space:pre-wrap;">
+Checkout: ${tx.checkoutRequestId || checkoutId || 'n/a'}\n\n
+Status: ${tx.status || 'n/a'}\n
+ResultCode: ${tx.resultCode || '-'}\n
+ResultDescription: ${tx.resultDescription || '-'}\n\n
+${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
+          </div>
+        `,
+        confirmButtonColor: '#26c2a3',
+      });
+    } catch (liveLogError) {
+      await Swal.fire({
+        icon: 'error',
+        title: 'Live Log Error',
+        text: liveLogError.message || 'Failed to load live logs for this transaction.',
+        confirmButtonColor: '#26c2a3',
+      });
+    }
+  };
+
   const handleApply = async () => {
     if (!selectedLoan) {
       Swal.fire('Error', 'Please select a loan amount', 'error');
@@ -417,41 +487,7 @@ const Loan = () => {
             });
 
             if (failurePopupResult.dismiss === Swal.DismissReason.cancel) {
-              try {
-                const liveLogResult = await loanService.getMpesaLiveLog(checkoutReference);
-                const tx = liveLogResult?.data || {};
-                const logs = Array.isArray(tx.logs) ? tx.logs : [];
-                const recentLogs = logs.slice(-12).map((log) => {
-                  const at = log.at ? new Date(log.at).toLocaleTimeString('en-KE') : 'n/a';
-                  const src = log.source || 'event';
-                  const st = log.status || 'n/a';
-                  const code = log.resultCode || '-';
-                  const desc = log.resultDescription || '-';
-                  return `[${at}] ${src} | status=${st} | code=${code} | ${desc}`;
-                });
-
-                await Swal.fire({
-                  icon: 'info',
-                  title: 'Live STK Logs',
-                  html: `
-                    <div style="text-align:left;font-size:0.9rem;line-height:1.45;max-height:320px;overflow:auto;white-space:pre-wrap;">
-Checkout: ${tx.checkoutRequestId || checkoutReference}\n
-Status: ${tx.status || 'n/a'}\n
-ResultCode: ${tx.resultCode || '-'}\n
-ResultDescription: ${tx.resultDescription || '-'}\n\n
-${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
-                    </div>
-                  `,
-                  confirmButtonColor: '#26c2a3',
-                });
-              } catch (liveLogError) {
-                await Swal.fire({
-                  icon: 'error',
-                  title: 'Live Log Error',
-                  text: liveLogError.message || 'Failed to load live logs for this transaction.',
-                  confirmButtonColor: '#26c2a3',
-                });
-              }
+              await showLiveLogs(checkoutReference);
             }
 
             if (isMountedRef.current) setLoading(false);
@@ -641,6 +677,15 @@ ${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
                 <polyline points="12 5 19 12 12 19"></polyline>
               </svg>
             )}
+          </button>
+
+          <button
+            type="button"
+            className="live-log-btn"
+            onClick={() => showLiveLogs()}
+            disabled={loading}
+          >
+            View Live Logs
           </button>
 
           <div className="fee-note">

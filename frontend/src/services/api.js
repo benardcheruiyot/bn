@@ -125,11 +125,13 @@ export const loanService = {
   },
 
   getMpesaLiveLog: async (checkoutId) => {
+    const params = { t: Date.now() };
+    if (checkoutId) {
+      params.checkoutId = checkoutId;
+    }
+
     const response = await api.get('/mpesa/live-log', {
-      params: {
-        checkoutId,
-        t: Date.now(),
-      },
+      params,
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         Pragma: 'no-cache',

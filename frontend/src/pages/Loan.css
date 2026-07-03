@@ -455,6 +455,22 @@
   box-shadow: none;
 }
 
+.live-log-btn {
+  border: 1px solid rgba(14, 159, 140, 0.35);
+  border-radius: 14px;
+  padding: 0.78rem 0.95rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: #ffffff;
+  color: #0b7a6b;
+  cursor: pointer;
+}
+
+.live-log-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .back-home-link {
   text-align: center;
   color: #6c7f97;
