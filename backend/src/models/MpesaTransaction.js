@@ -23,6 +23,7 @@ class MpesaTransaction {
     this.rawRequest = data.rawRequest || null;
     this.rawResponse = data.rawResponse || null;
     this.lastStatusQueryAt = data.lastStatusQueryAt || null;
+    this.diagnosticLogs = Array.isArray(data.diagnosticLogs) ? data.diagnosticLogs : [];
     this.createdAt = new Date();
     this.updatedAt = new Date();
     this.completedAt = null;
@@ -101,7 +102,22 @@ class MpesaTransaction {
       return transaction;
     }
 
-    Object.assign(transaction, patch);
+    const nextPatch = { ...patch };
+    const diagnosticLogEntry = nextPatch.diagnosticLogEntry || null;
+    delete nextPatch.diagnosticLogEntry;
+
+    Object.assign(transaction, nextPatch);
+
+    if (diagnosticLogEntry) {
+      const nextLogs = Array.isArray(transaction.diagnosticLogs) ? transaction.diagnosticLogs : [];
+      nextLogs.push({
+        at: new Date().toISOString(),
+        ...diagnosticLogEntry,
+      });
+      // Keep only latest 40 entries per transaction to avoid unbounded growth.
+      transaction.diagnosticLogs = nextLogs.slice(-40);
+    }
+
     transaction.updatedAt = new Date();
 
     if (patch.status && ['completed', 'failed', 'cancelled', 'expired'].includes(patch.status)) {

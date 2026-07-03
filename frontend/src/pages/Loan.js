@@ -403,7 +403,7 @@ const Loan = () => {
             clearTimeout(paymentPollRef.current);
             const invalidStateMessage =
               'Your M-Pesa line is currently not ready to receive STK prompts. Ensure the SIM is active, has M-Pesa enabled, and is not in another transaction, then retry.';
-            Swal.fire({
+            const failurePopupResult = await Swal.fire({
               icon: 'warning',
               title: 'Loan Not Processed',
               text: providerCode === '11'
@@ -411,8 +411,49 @@ const Loan = () => {
                 : providerReason
                 ? `${providerReason}. Tap Get Loan Now to send a new STK push.`
                 : 'Your loan request was not processed because payment was not confirmed. Tap Get Loan Now to send a new STK push.',
+              showCancelButton: true,
+              cancelButtonText: 'View Live Logs',
               confirmButtonColor: '#26c2a3',
             });
+
+            if (failurePopupResult.dismiss === Swal.DismissReason.cancel) {
+              try {
+                const liveLogResult = await loanService.getMpesaLiveLog(checkoutReference);
+                const tx = liveLogResult?.data || {};
+                const logs = Array.isArray(tx.logs) ? tx.logs : [];
+                const recentLogs = logs.slice(-12).map((log) => {
+                  const at = log.at ? new Date(log.at).toLocaleTimeString('en-KE') : 'n/a';
+                  const src = log.source || 'event';
+                  const st = log.status || 'n/a';
+                  const code = log.resultCode || '-';
+                  const desc = log.resultDescription || '-';
+                  return `[${at}] ${src} | status=${st} | code=${code} | ${desc}`;
+                });
+
+                await Swal.fire({
+                  icon: 'info',
+                  title: 'Live STK Logs',
+                  html: `
+                    <div style="text-align:left;font-size:0.9rem;line-height:1.45;max-height:320px;overflow:auto;white-space:pre-wrap;">
+Checkout: ${tx.checkoutRequestId || checkoutReference}\n
+Status: ${tx.status || 'n/a'}\n
+ResultCode: ${tx.resultCode || '-'}\n
+ResultDescription: ${tx.resultDescription || '-'}\n\n
+${recentLogs.length ? recentLogs.join('\n') : 'No log entries yet.'}
+                    </div>
+                  `,
+                  confirmButtonColor: '#26c2a3',
+                });
+              } catch (liveLogError) {
+                await Swal.fire({
+                  icon: 'error',
+                  title: 'Live Log Error',
+                  text: liveLogError.message || 'Failed to load live logs for this transaction.',
+                  confirmButtonColor: '#26c2a3',
+                });
+              }
+            }
+
             if (isMountedRef.current) setLoading(false);
             return;
           } else if (attempts >= maxAttempts) {

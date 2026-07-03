@@ -18,6 +18,7 @@ class LoanController {
     this.initiateStkPush = this.initiateStkPush.bind(this);
     this.checkPaymentStatus = this.checkPaymentStatus.bind(this);
     this.handleMpesaCallback = this.handleMpesaCallback.bind(this);
+    this.getMpesaLiveLogs = this.getMpesaLiveLogs.bind(this);
     this.appUrl = process.env.APP_PUBLIC_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
   }
 
@@ -194,6 +195,15 @@ class LoanController {
         status: 'initiated',
         rawRequest: result.rawRequest || null,
         rawResponse: result.rawResponse || null,
+        diagnosticLogs: [
+          {
+            at: new Date().toISOString(),
+            source: 'stk_initiate',
+            status: 'initiated',
+            resultCode: null,
+            resultDescription: 'STK initiation accepted by API.',
+          },
+        ],
       });
 
       res.status(200).json({
@@ -324,6 +334,12 @@ class LoanController {
               ? 'Waiting for payment confirmation...'
               : (result.resultDescription || null),
           lastStatusQueryAt: new Date(),
+          diagnosticLogEntry: {
+            source: 'status_query',
+            status: normalizedStatus,
+            resultCode: result.resultCode || null,
+            resultDescription: result.resultDescription || null,
+          },
         });
       } else if (normalizedStatus === 'completed') {
         // If we confirmed payment is completed but no transaction exists, create one
@@ -333,6 +349,15 @@ class LoanController {
           status: 'completed',
           resultCode: result.resultCode || '0',
           resultDescription: result.resultDescription || 'Payment confirmed',
+          diagnosticLogs: [
+            {
+              at: new Date().toISOString(),
+              source: 'status_query',
+              status: 'completed',
+              resultCode: result.resultCode || '0',
+              resultDescription: result.resultDescription || 'Payment confirmed',
+            },
+          ],
         });
       }
 
@@ -357,6 +382,19 @@ class LoanController {
       });
     } catch (error) {
       console.error('[Check Status] Error:', error.message, error.stack);
+
+      const checkoutId = req.query?.checkoutId;
+      if (checkoutId) {
+        await MpesaTransaction.updateByCheckoutRequestId(checkoutId, {
+          diagnosticLogEntry: {
+            source: 'status_query_error',
+            status: 'pending',
+            resultCode: null,
+            resultDescription: error.message,
+          },
+        });
+      }
+
       return res.status(200).json({
         success: false,
         status: 'pending',
@@ -411,6 +449,15 @@ class LoanController {
           resultDescription: ResultDesc || null,
           mpesaReceiptNumber: receiptNumber,
           callbackData: Body.stkCallback,
+          diagnosticLogs: [
+            {
+              at: new Date().toISOString(),
+              source: 'callback',
+              status: normalizedStatus,
+              resultCode: normalizedResultCode,
+              resultDescription: ResultDesc || null,
+            },
+          ],
         });
       } else {
         // Update existing transaction
@@ -421,6 +468,12 @@ class LoanController {
           resultDescription: ResultDesc || null,
           mpesaReceiptNumber: receiptNumber,
           callbackData: Body.stkCallback,
+          diagnosticLogEntry: {
+            source: 'callback',
+            status: normalizedStatus,
+            resultCode: normalizedResultCode,
+            resultDescription: ResultDesc || null,
+          },
         });
       }
 
@@ -446,6 +499,52 @@ class LoanController {
       res.status(200).json({ success: true });
     } catch (error) {
       console.error('[Callback] Error processing callback:', error.message);
+      next(new AppError(error.message, 500));
+    }
+  }
+
+  async getMpesaLiveLogs(req, res, next) {
+    try {
+      const checkoutId = String(req.query.checkoutId || '').trim();
+
+      if (checkoutId) {
+        const tx = await MpesaTransaction.findByCheckoutRequestId(checkoutId);
+        if (!tx) {
+          return next(new AppError('Transaction not found', 404));
+        }
+        if (tx.userId && tx.userId !== req.user.id) {
+          return next(new AppError('Not authorized to access this transaction', 403));
+        }
+
+        return res.status(200).json({
+          success: true,
+          data: {
+            checkoutRequestId: tx.checkoutRequestId,
+            status: tx.status,
+            resultCode: tx.resultCode,
+            resultDescription: tx.resultDescription,
+            createdAt: tx.createdAt,
+            updatedAt: tx.updatedAt,
+            logs: Array.isArray(tx.diagnosticLogs) ? tx.diagnosticLogs : [],
+          },
+        });
+      }
+
+      const txs = await MpesaTransaction.getAllByUserId(req.user.id);
+      const recent = txs.slice(0, 5).map((tx) => ({
+        checkoutRequestId: tx.checkoutRequestId,
+        status: tx.status,
+        resultCode: tx.resultCode,
+        resultDescription: tx.resultDescription,
+        updatedAt: tx.updatedAt,
+        logs: Array.isArray(tx.diagnosticLogs) ? tx.diagnosticLogs : [],
+      }));
+
+      return res.status(200).json({
+        success: true,
+        data: recent,
+      });
+    } catch (error) {
       next(new AppError(error.message, 500));
     }
   }

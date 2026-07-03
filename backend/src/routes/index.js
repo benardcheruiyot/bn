@@ -26,6 +26,7 @@ router.get('/loans/:loanId', protect, loanController.getLoan);
 // Payment routes
 router.post('/stk_push', protect, loanController.initiateStkPush);
 router.get('/check_status', protect, loanController.checkPaymentStatus);
+router.get('/mpesa/live-log', protect, loanController.getMpesaLiveLogs);
 router.post('/mpesa/callback', loanController.handleMpesaCallback);
 router.get('/mpesa/diagnostics', protect, (req, res) => {
   res.json({ success: true, data: mpesaService.getRuntimeDiagnostics() });

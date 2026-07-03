@@ -123,6 +123,21 @@ export const loanService = {
     });
     return response.data;
   },
+
+  getMpesaLiveLog: async (checkoutId) => {
+    const response = await api.get('/mpesa/live-log', {
+      params: {
+        checkoutId,
+        t: Date.now(),
+      },
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    });
+    return response.data;
+  },
 };
 
 export default api;
