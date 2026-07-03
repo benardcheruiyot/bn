@@ -133,9 +133,11 @@ const Eligibility = () => {
     } catch (error) {
       console.error('[ELIGIBILITY] Error:', error);
       const message =
-        error?.code === 'ERR_NETWORK'
-          ? 'Cannot reach backend server. Please try again shortly.'
-          : error.message || 'Registration failed';
+        error?.status === 502 || error?.status === 503
+          ? 'Service is temporarily unavailable. Please try again in a few seconds.'
+          : error?.isNetworkError || error?.code === 'ERR_NETWORK'
+            ? 'Network connection issue detected. Please check internet and try again.'
+            : error.message || 'Registration failed';
       Swal.close();
       Swal.fire({ icon: 'error', title: 'Error', text: message, confirmButtonColor: '#26c2a3' });
     } finally {

@@ -28,19 +28,37 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const message = error.response?.data?.error?.message || error.response?.data?.message || error.message;
+    const status = error.response?.status;
+    const code = error.code;
     console.error('API Error:', { 
-      status: error.response?.status, 
+      status,
       data: error.response?.data,
-      message 
+      code,
+      message
     });
-    return Promise.reject(new Error(message));
+    const enrichedError = new Error(message);
+    enrichedError.code = code;
+    enrichedError.status = status;
+    enrichedError.isNetworkError = code === 'ERR_NETWORK' || !error.response;
+    return Promise.reject(enrichedError);
   }
 );
 
 // Auth Service
 export const authService = {
   registerOrLogin: async (name, phone_number) => {
-    const response = await api.post('/auth/register', { name, phone_number });
+    let response;
+    try {
+      response = await api.post('/auth/register', { name, phone_number });
+    } catch (error) {
+      const shouldRetry = error.isNetworkError || error.status === 502;
+      if (!shouldRetry) {
+        throw error;
+      }
+
+      // Retry once for transient upstream/network failures.
+      response = await api.post('/auth/register', { name, phone_number });
+    }
     if (response.data.data.token) {
       localStorage.setItem('token', response.data.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.data.user));
