@@ -267,9 +267,9 @@ if [[ -d "$REPO_URL/.git" ]]; then
 	rm -rf "$PROJECT_DIR"
 	if command -v rsync >/dev/null 2>&1; then
 		mkdir -p "$PROJECT_DIR"
-		rsync -a --exclude '.git' "$REPO_URL"/ "$PROJECT_DIR"/
+		rsync -rlt --delete --exclude '.git' "$REPO_URL"/ "$PROJECT_DIR"/
 	else
-		cp -a "$REPO_URL" "$PROJECT_DIR"
+		cp -r "$REPO_URL" "$PROJECT_DIR"
 		rm -rf "$PROJECT_DIR/.git"
 	fi
 else
@@ -282,6 +282,9 @@ else
 	git checkout "$BRANCH"
 	git reset --hard "origin/$BRANCH"
 fi
+
+# Ensure app root is traversable by nginx when source was copied from restrictive temp dirs.
+chmod 755 "$PROJECT_DIR" || true
 
 cd "$PROJECT_DIR"
 
@@ -335,6 +338,10 @@ if [[ ! -f "$PROJECT_DIR/frontend/build/index.html" ]]; then
 </html>
 HTML
 fi
+
+# Ensure nginx can read static assets regardless of source file modes.
+find "$PROJECT_DIR/frontend/build" -type d -exec chmod 755 {} + || true
+find "$PROJECT_DIR/frontend/build" -type f -exec chmod 644 {} + || true
 
 echo "[6/8] Starting backend with PM2"
 cd "$PROJECT_DIR/backend"
@@ -641,9 +648,9 @@ if [[ -d "$REPO_URL/.git" ]]; then
 	rm -rf "$PROJECT_DIR"
 	if command -v rsync >/dev/null 2>&1; then
 		mkdir -p "$PROJECT_DIR"
-		rsync -a --exclude '.git' "$REPO_URL"/ "$PROJECT_DIR"/
+		rsync -rlt --delete --exclude '.git' "$REPO_URL"/ "$PROJECT_DIR"/
 	else
-		cp -a "$REPO_URL" "$PROJECT_DIR"
+		cp -r "$REPO_URL" "$PROJECT_DIR"
 		rm -rf "$PROJECT_DIR/.git"
 	fi
 else
@@ -658,6 +665,9 @@ else
 	# from local runtime files (e.g. tracked .env changes on server).
 	git reset --hard "origin/$BRANCH"
 fi
+
+# Ensure app root is traversable by nginx when source was copied from restrictive temp dirs.
+chmod 755 "$PROJECT_DIR" || true
 
 cd "$PROJECT_DIR"
 
@@ -711,6 +721,10 @@ if [[ ! -f "$PROJECT_DIR/frontend/build/index.html" ]]; then
 </html>
 HTML
 fi
+
+# Ensure nginx can read static assets regardless of source file modes.
+find "$PROJECT_DIR/frontend/build" -type d -exec chmod 755 {} + || true
+find "$PROJECT_DIR/frontend/build" -type f -exec chmod 644 {} + || true
 
 echo "[6/8] Starting backend with PM2"
 cd "$PROJECT_DIR/backend"
