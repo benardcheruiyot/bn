@@ -159,18 +159,20 @@ class MpesaService {
       const signingShortCodes = this.getSigningShortCodeCandidates(txType);
 
       for (const signingShortCode of signingShortCodes) {
-        // First, honor configured destination account.
-        pushUnique({
-          transactionType: txType,
-          businessShortCode: signingShortCode,
-          partyB: defaultProfile.partyB,
-        });
-
-        // Then try signing shortcode as destination for merchant profiles that require exact match.
+        // First, try exact merchant pairing (signing shortcode equals destination account).
+        // This avoids Daraja 2002 "Agent number and Store number entered do not match"
+        // on profiles where store/till must match the signing shortcode.
         pushUnique({
           transactionType: txType,
           businessShortCode: signingShortCode,
           partyB: signingShortCode,
+        });
+
+        // Then honor configured destination account.
+        pushUnique({
+          transactionType: txType,
+          businessShortCode: signingShortCode,
+          partyB: defaultProfile.partyB,
         });
       }
     }
