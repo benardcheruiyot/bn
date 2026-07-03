@@ -289,7 +289,7 @@ chmod 755 "$PROJECT_DIR" || true
 cd "$PROJECT_DIR"
 
 echo "[3/8] Preparing environment files"
-if [[ -f "$ENV_SYNC_DIR/backend.env" ]]; then
+if [[ -n "$ENV_SYNC_DIR" && -f "$ENV_SYNC_DIR/.use-env-sync" && -f "$ENV_SYNC_DIR/backend.env" ]]; then
 	cp "$ENV_SYNC_DIR/backend.env" backend/.env
 	chmod 600 backend/.env
 	echo "Applied backend/.env from local machine"
@@ -531,6 +531,7 @@ fi
 if [[ "$SYNC_ENV" == "1" ]]; then
 	echo "Syncing local env files to remote temporary location"
 	"${SSH_CMD[@]}" "$HOST" "mkdir -p '$ENV_SYNC_DIR'"
+	"${SSH_CMD[@]}" "$HOST" "printf '1' > '$ENV_SYNC_DIR/.use-env-sync'"
 	if [[ -f "$LOCAL_BACKEND_ENV" ]]; then
 		"${SCP_CMD[@]}" "$LOCAL_BACKEND_ENV" "$HOST:$ENV_SYNC_DIR/backend.env"
 	else
@@ -691,7 +692,7 @@ chmod 755 "$PROJECT_DIR" || true
 cd "$PROJECT_DIR"
 
 echo "[3/8] Preparing environment files"
-if [[ -f "$ENV_SYNC_DIR/backend.env" ]]; then
+if [[ -n "$ENV_SYNC_DIR" && -f "$ENV_SYNC_DIR/.use-env-sync" && -f "$ENV_SYNC_DIR/backend.env" ]]; then
 	cp "$ENV_SYNC_DIR/backend.env" backend/.env
 	chmod 600 backend/.env
 	echo "Applied backend/.env from local machine"
