@@ -391,10 +391,15 @@ const Loan = () => {
           ) {
             clearTimeout(paymentPollRef.current);
             const providerReason = String(statusResult.resultDescription || '').trim();
+            const providerCode = String(statusResult.resultCode || '').trim();
+            const invalidStateMessage =
+              'Your M-Pesa line is currently not ready to receive STK prompts. Ensure the SIM is active, has M-Pesa enabled, and is not in another transaction, then retry.';
             Swal.fire({
               icon: 'warning',
               title: 'Loan Not Processed',
-              text: providerReason
+              text: providerCode === '11'
+                ? `${invalidStateMessage} ${providerReason ? `(${providerReason})` : ''}`
+                : providerReason
                 ? `${providerReason}. Tap Get Loan Now to send a new STK push.`
                 : 'Your loan request was not processed because payment was not confirmed. Tap Get Loan Now to send a new STK push.',
               confirmButtonColor: '#26c2a3',
