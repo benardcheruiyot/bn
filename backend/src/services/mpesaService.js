@@ -628,35 +628,67 @@ class MpesaService {
       console.log(`[M-Pesa Status] Attempt ${attempt}: Checking transaction status for ${checkoutRequestId}`);
 
       const accessToken = await this.getAccessToken();
-      const timestamp = new Date()
-        .toISOString()
-        .replace(/[^0-9]/g, '')
-        .slice(0, -3);
-
-      const queryRoutingProfile = routingProfile || this.getRoutingProfile(this.getActiveTransactionType());
-      const activeBusinessCode = queryRoutingProfile.businessShortCode;
-      const password = Buffer.from(
-        `${activeBusinessCode}${this.passkey}${timestamp}`
-      ).toString('base64');
-
-      const payload = {
-        BusinessShortCode: activeBusinessCode,
-        Password: password,
-        Timestamp: timestamp,
-        CheckoutRequestID: checkoutRequestId,
+      const activeTxType = routingProfile?.transactionType || this.getActiveTransactionType();
+      const fallbackBusinessCodes = this.getSigningShortCodeCandidates(activeTxType);
+      const orderedCodes = [];
+      const pushCode = (value) => {
+        const normalized = String(value || '').trim();
+        if (!normalized || orderedCodes.includes(normalized)) return;
+        orderedCodes.push(normalized);
       };
 
-      const response = await this.requestJson(
-        'POST',
-        '/mpesa/stkpushquery/v1/query',
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: payload,
-          timeout: 7000,
+      pushCode(routingProfile?.businessShortCode);
+      fallbackBusinessCodes.forEach(pushCode);
+
+      let response = null;
+      let last2002Response = null;
+      for (const businessCode of orderedCodes) {
+        const timestamp = new Date()
+          .toISOString()
+          .replace(/[^0-9]/g, '')
+          .slice(0, -3);
+        const password = Buffer.from(`${businessCode}${this.passkey}${timestamp}`).toString('base64');
+        const payload = {
+          BusinessShortCode: businessCode,
+          Password: password,
+          Timestamp: timestamp,
+          CheckoutRequestID: checkoutRequestId,
+        };
+
+        const currentResponse = await this.requestJson(
+          'POST',
+          '/mpesa/stkpushquery/v1/query',
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: payload,
+            timeout: 7000,
+          }
+        );
+
+        if (String(currentResponse.ResultCode || '') === '2002') {
+          last2002Response = currentResponse;
+          continue;
         }
-      );
+
+        response = currentResponse;
+        break;
+      }
+
+      if (!response && last2002Response) {
+        return {
+          success: false,
+          status: 'pending',
+          resultCode: last2002Response.ResultCode,
+          resultDescription: last2002Response.ResultDesc,
+          mpesaReference: last2002Response.MerchantRequestID,
+        };
+      }
+
+      if (!response) {
+        throw new Error('Unable to query M-Pesa transaction status.');
+      }
 
       console.log('[M-Pesa Status] Response:', JSON.stringify(response));
 

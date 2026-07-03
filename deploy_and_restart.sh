@@ -311,14 +311,6 @@ upsert_env "ALLOWED_BASE_DOMAIN" "${DOMAIN}" "backend/.env"
 upsert_env "APP_PUBLIC_URL" "https://${DOMAIN}" "backend/.env"
 upsert_env "MPESA_CALLBACK_URL" "https://${DOMAIN}/api/mpesa/callback" "backend/.env"
 
-# Force Daraja merchant destination pairing to avoid code 2002
-# ("Agent number and Store number entered do not match").
-mpesa_shortcode_value="$(awk -F= '/^[[:space:]]*MPESA_SHORTCODE[[:space:]]*=/{v=$2; sub(/\r$/, "", v); gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); gsub(/^"|"$/, "", v); print v; exit}' backend/.env || true)"
-if [[ -n "$mpesa_shortcode_value" ]]; then
-	upsert_env "MPESA_PARTYB" "$mpesa_shortcode_value" "backend/.env"
-	upsert_env "MPESA_STK_BUSINESS_SHORTCODE" "$mpesa_shortcode_value" "backend/.env"
-fi
-
 echo "[4/8] Installing backend dependencies"
 cd "$PROJECT_DIR/backend"
 npm ci
@@ -721,14 +713,6 @@ upsert_env "ALLOWED_ORIGINS" "https://${DOMAIN},https://www.${DOMAIN}" "backend/
 upsert_env "ALLOWED_BASE_DOMAIN" "${DOMAIN}" "backend/.env"
 upsert_env "APP_PUBLIC_URL" "https://${DOMAIN}" "backend/.env"
 upsert_env "MPESA_CALLBACK_URL" "https://${DOMAIN}/api/mpesa/callback" "backend/.env"
-
-# Force Daraja merchant destination pairing to avoid code 2002
-# ("Agent number and Store number entered do not match").
-mpesa_shortcode_value="$(awk -F= '/^[[:space:]]*MPESA_SHORTCODE[[:space:]]*=/{v=$2; sub(/\r$/, "", v); gsub(/^[[:space:]]+|[[:space:]]+$/, "", v); gsub(/^"|"$/, "", v); print v; exit}' backend/.env || true)"
-if [[ -n "$mpesa_shortcode_value" ]]; then
-	upsert_env "MPESA_PARTYB" "$mpesa_shortcode_value" "backend/.env"
-	upsert_env "MPESA_STK_BUSINESS_SHORTCODE" "$mpesa_shortcode_value" "backend/.env"
-fi
 
 echo "[4/8] Installing backend dependencies"
 cd "$PROJECT_DIR/backend"
