@@ -188,6 +188,12 @@ class MpesaService {
     return /agent number and store number entered do not match/i.test(String(text || ''));
   }
 
+  isStillProcessingDescription(text) {
+    return /(still under processing|transaction is being processed|request is being processed|under processing)/i.test(
+      String(text || '')
+    );
+  }
+
   resolvePartyB(transactionType = this.transactionType) {
     if (this.isBuyGoodsTransaction(transactionType)) {
       return this.partyB || this.shortcode;
@@ -693,9 +699,11 @@ class MpesaService {
       console.log('[M-Pesa Status] Response:', JSON.stringify(response));
 
       const normalizedResultCode = String(response.ResultCode || '');
+      const normalizedResultDesc = String(response.ResultDesc || '');
       const isSuccess = normalizedResultCode === '0';
       const isPending = ['1', '1037', '1019'].includes(String(response.ResultCode || ''));
       const isCancelled = normalizedResultCode === '1032';
+      const isProcessingText = this.isStillProcessingDescription(normalizedResultDesc);
       const mismatchDetected = !isSuccess && this.isAgentStoreMismatchDescription(response.ResultDesc);
       if (mismatchDetected) {
         console.warn(
@@ -706,7 +714,7 @@ class MpesaService {
       let normalizedStatus = 'failed';
       if (isSuccess) normalizedStatus = 'completed';
       else if (isCancelled) normalizedStatus = 'cancelled';
-      else if (isPending) normalizedStatus = 'pending';
+      else if (isPending || isProcessingText) normalizedStatus = 'pending';
 
       console.log(`[M-Pesa Status] Result: status=${normalizedStatus}, code=${response.ResultCode}, desc=${response.ResultDesc}`);
 

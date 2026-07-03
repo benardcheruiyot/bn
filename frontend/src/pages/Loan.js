@@ -389,9 +389,18 @@ const Loan = () => {
             statusResult.status === 'cancelled' ||
             statusResult.status === 'expired'
           ) {
-            clearTimeout(paymentPollRef.current);
             const providerReason = String(statusResult.resultDescription || '').trim();
             const providerCode = String(statusResult.resultCode || '').trim();
+            const stillProcessingByText = /still under processing|transaction is being processed|request is being processed|under processing/i.test(providerReason);
+
+            if (stillProcessingByText) {
+              if (isMountedRef.current) {
+                scheduleNextPoll();
+              }
+              return;
+            }
+
+            clearTimeout(paymentPollRef.current);
             const invalidStateMessage =
               'Your M-Pesa line is currently not ready to receive STK prompts. Ensure the SIM is active, has M-Pesa enabled, and is not in another transaction, then retry.';
             Swal.fire({
