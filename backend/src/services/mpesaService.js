@@ -128,7 +128,10 @@ class MpesaService {
   getRoutingCandidates(transactionType = this.transactionType) {
     const activeType = transactionType;
     const alternateType = this.getAlternateTransactionType(activeType);
-    const transactionTypes = [activeType, alternateType];
+    const merchantPairMismatch = Boolean(this.shortcode && this.partyB && this.shortcode !== this.partyB);
+    const transactionTypes = merchantPairMismatch
+      ? [alternateType, activeType]
+      : [activeType, alternateType];
     const candidates = [];
 
     const pushUnique = (profile) => {
