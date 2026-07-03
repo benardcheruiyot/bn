@@ -179,16 +179,6 @@ jobs:
               break
             fi
 
-            if curl -fsS --max-time 10 "https://$DOMAIN" >/dev/null; then
-              ok=1
-              break
-            fi
-
-            if curl -fsS --max-time 10 "http://$DOMAIN" >/dev/null; then
-              ok=1
-              break
-            fi
-
             echo "Public health check retry ${i}/18"
             sleep 10
           done
@@ -234,6 +224,12 @@ jobs:
             echo "===== NGINX ====="
             sudo -n nginx -t || true
             sudo -n systemctl status nginx --no-pager -l || true
+            if [ -n "$DOMAIN" ]; then
+              echo "----- active nginx site config: /etc/nginx/sites-enabled/${DOMAIN}.conf -----"
+              sudo -n cat "/etc/nginx/sites-enabled/${DOMAIN}.conf" || true
+            fi
+            echo "----- nginx error.log (last 200 lines) -----"
+            sudo -n tail -n 200 /var/log/nginx/error.log || true
 
             echo "===== DOMAIN ====="
             if [ -n "$DOMAIN" ]; then
@@ -244,4 +240,6 @@ jobs:
             if [ -n "$APP_ROOT" ]; then
               echo "===== BACKEND ENV (SAFE) ====="
               grep -E '^(NODE_ENV|PORT|FRONTEND_URL|MPESA_CALLBACK_URL)=' "$APP_ROOT/backend/.env" || true
+              echo "===== FRONTEND BUILD PERMS ====="
+              ls -la "$APP_ROOT/frontend/build" || true
             fi

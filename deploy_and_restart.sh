@@ -353,6 +353,25 @@ fi
 pm2 save
 pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
 
+echo "Validating backend startup on localhost:${BACKEND_PORT}"
+backend_ok=0
+for i in $(seq 1 18); do
+	if curl -fsS --max-time 5 "http://127.0.0.1:${BACKEND_PORT}/api/health" >/dev/null; then
+		backend_ok=1
+		break
+	fi
+	echo "Backend health retry ${i}/18"
+	sleep 5
+done
+
+if [[ "$backend_ok" -ne 1 ]]; then
+	echo "Backend failed to become healthy on port ${BACKEND_PORT}."
+	pm2 status || true
+	pm2 logs "$PM2_APP_NAME" --lines 120 --nostream || true
+	ss -ltnp | grep -E ":${BACKEND_PORT}" || true
+	exit 1
+fi
+
 echo "[7/8] Configuring Nginx"
 if [[ -f "$LE_FULLCHAIN" && -f "$LE_PRIVKEY" ]]; then
 cat > "$NGINX_CONF" <<NGINX
@@ -735,6 +754,25 @@ else
 fi
 pm2 save
 pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
+
+echo "Validating backend startup on localhost:${BACKEND_PORT}"
+backend_ok=0
+for i in $(seq 1 18); do
+	if curl -fsS --max-time 5 "http://127.0.0.1:${BACKEND_PORT}/api/health" >/dev/null; then
+		backend_ok=1
+		break
+	fi
+	echo "Backend health retry ${i}/18"
+	sleep 5
+done
+
+if [[ "$backend_ok" -ne 1 ]]; then
+	echo "Backend failed to become healthy on port ${BACKEND_PORT}."
+	pm2 status || true
+	pm2 logs "$PM2_APP_NAME" --lines 120 --nostream || true
+	ss -ltnp | grep -E ":${BACKEND_PORT}" || true
+	exit 1
+fi
 
 echo "[7/8] Configuring Nginx"
 if [[ -f "$LE_FULLCHAIN" && -f "$LE_PRIVKEY" ]]; then
